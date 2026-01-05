@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  /* Color de fondo tipo papel marfil muy suave para no cansar la vista */
+  --background: #fdfdfd; 
+  --foreground: #1a1a1a;
+  --accent-gold: #b45309; /* Ámbar para detalles elegantes */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent-gold);
+}
+
+/* Forzamos que el sitio mantenga su elegancia incluso en modo oscuro */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #121212;
+    --foreground: #f5f5f5;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  /* Optimizamos la renderización de fuentes para que se vean "de imprenta" */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* --- CLASES DE ESTILO EDITORIAL --- */
+
+/* Efecto de sombra para que los libros parezcan objetos físicos */
+.book-shadow {
+  box-shadow: 
+    5px 5px 15px rgba(0, 0, 0, 0.2),
+    15px 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+/* Animación de entrada suave para toda la página */
+.animate-in {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Personalización de la barra de desplazamiento (Scrollbar) */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+  border: 2px solid var(--background);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Evitar que se seleccione texto en el visor de lectura */
+.select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
