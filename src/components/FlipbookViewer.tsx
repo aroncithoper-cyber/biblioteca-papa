@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+// @ts-ignore
 import HTMLFlipBook from "react-pageflip";
 import * as pdfjsLib from "pdfjs-dist";
-import { auth } from "@/lib/firebase"; // Asegúrate de que esta ruta sea correcta
+import { auth } from "@/lib/firebase";
 
-(pdfjsLib as any).GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
+// Configuración del worker para PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 type Props = { fileUrl: string };
 
@@ -44,10 +46,9 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         if (!res.ok) throw new Error("No se pudo conectar con el servidor.");
 
         const data = await res.arrayBuffer();
-        const pdf = await (pdfjsLib as any).getDocument({ data }).promise;
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
         setTotalPages(pdf.numPages);
 
-        // Obtener el correo del usuario para la marca de agua
         const userMark = auth.currentUser?.email || "Copia Protegida";
 
         const imgs: string[] = [];
@@ -63,31 +64,25 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);
 
-          // 1. Renderizar la página original del PDF
           await page.render({ canvasContext: ctx, viewport }).promise;
 
-          // 2. APLICAR MARCA DE AGUA (Watermark)
           ctx.save();
-          // Configuración del estilo del texto
           const fontSize = Math.floor(canvas.width / 18);
           ctx.font = `bold ${fontSize}px serif`;
-          ctx.fillStyle = "rgba(150, 150, 150, 0.2)"; // Color gris muy suave y transparente
+          ctx.fillStyle = "rgba(150, 150, 150, 0.2)"; 
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
 
-          // Dibujar marca de agua central en diagonal
           ctx.translate(canvas.width / 2, canvas.height / 2);
-          ctx.rotate(-Math.PI / 4); // 45 grados
+          ctx.rotate(-Math.PI / 4); 
           ctx.fillText(userMark, 0, 0);
 
-          // Dibujar marcas de agua adicionales en las esquinas para mayor seguridad
           ctx.font = `bold ${Math.floor(fontSize / 2.5)}px serif`;
           ctx.fillText(userMark, 0, canvas.height / 3.5);
           ctx.fillText(userMark, 0, -canvas.height / 3.5);
           
           ctx.restore();
 
-          // 3. Convertir a imagen (ahora la marca de agua es parte de los píxeles)
           imgs.push(canvas.toDataURL("image/jpeg", 0.8));
           
           if (i === 1 || i % 4 === 0 || i === pdf.numPages) {
@@ -109,7 +104,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   return (
     <div className="w-full flex flex-col items-center gap-6 py-4 select-none" onContextMenu={(e) => e.preventDefault()}>
       
-      {/* Controles Estilo Minimalista */}
       <div className="flex items-center justify-center gap-4 px-4 py-2 bg-white border rounded-xl shadow-md z-10 font-serif">
           <button className="w-8 h-8 rounded-full border hover:bg-black hover:text-white transition-colors" onClick={() => setZoom(z => Math.max(0.6, z - 0.1))}>–</button>
           <span className="text-xs w-10 text-center font-bold">{Math.round(zoom * 100)}%</span>
@@ -119,7 +113,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           <button className="px-4 py-1.5 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800" onClick={() => bookRef.current?.pageFlip()?.flipNext()}>Siguiente</button>
       </div>
 
-      {/* Visor con Zoom Centrado */}
       <div className="relative flex items-center justify-center bg-gray-50 rounded-3xl p-10 min-h-[680px] w-full max-w-6xl overflow-hidden border border-gray-100">
         
         {loading && (
@@ -143,6 +136,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           }}
         >
           {pages.length > 0 && (
+            /* @ts-ignore */
             <HTMLFlipBook
               ref={bookRef}
               width={400}
@@ -154,6 +148,17 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               showCover={true}
               mobileScrollSupport={true}
               className="book-main shadow-2xl"
+              style={{ margin: "0 auto" }}
+              startPage={0}
+              flippingTime={1000}
+              usePortrait={true}
+              startZIndex={0}
+              autoSize={true}
+              clickEventForward={true}
+              useMouseEvents={true}
+              swipeDistance={30}
+              showPageCorners={true}
+              disableFlipByClick={false}
             >
               {pages.map((src, idx) => (
                 <div key={idx} className="bg-white border-l border-gray-100">
