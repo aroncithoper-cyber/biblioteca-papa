@@ -6,7 +6,7 @@ import HTMLFlipBook from "react-pageflip";
 import * as pdfjsLib from "pdfjs-dist";
 import { auth } from "@/lib/firebase";
 
-// Configuración del worker para PDF.js
+// Configuración del worker compatible con Vercel
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 type Props = { fileUrl: string };
@@ -46,6 +46,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         if (!res.ok) throw new Error("No se pudo conectar con el servidor.");
 
         const data = await res.arrayBuffer();
+        // @ts-ignore
         const pdf = await pdfjsLib.getDocument({ data }).promise;
         setTotalPages(pdf.numPages);
 
@@ -64,7 +65,8 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);
 
-          await page.render({ canvasContext: ctx, viewport }).promise;
+          // @ts-ignore
+          await page.render({ canvasContext: ctx, viewport } as any).promise;
 
           ctx.save();
           const fontSize = Math.floor(canvas.width / 18);
@@ -104,6 +106,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   return (
     <div className="w-full flex flex-col items-center gap-6 py-4 select-none" onContextMenu={(e) => e.preventDefault()}>
       
+      {/* Controles Estilo Minimalista */}
       <div className="flex items-center justify-center gap-4 px-4 py-2 bg-white border rounded-xl shadow-md z-10 font-serif">
           <button className="w-8 h-8 rounded-full border hover:bg-black hover:text-white transition-colors" onClick={() => setZoom(z => Math.max(0.6, z - 0.1))}>–</button>
           <span className="text-xs w-10 text-center font-bold">{Math.round(zoom * 100)}%</span>
@@ -113,6 +116,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           <button className="px-4 py-1.5 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800" onClick={() => bookRef.current?.pageFlip()?.flipNext()}>Siguiente</button>
       </div>
 
+      {/* Visor con Zoom Centrado y Diseño Estable */}
       <div className="relative flex items-center justify-center bg-gray-50 rounded-3xl p-10 min-h-[680px] w-full max-w-6xl overflow-hidden border border-gray-100">
         
         {loading && (
@@ -175,6 +179,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         </div>
       </div>
 
+      {/* Pie de página con los datos de tu papá */}
       <div className="text-center space-y-1">
         <p className="text-[10px] uppercase tracking-[0.3em] text-gray-400 font-serif">
           Jose Enrique Perez Leon — RV1909
