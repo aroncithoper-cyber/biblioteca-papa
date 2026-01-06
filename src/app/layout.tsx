@@ -11,7 +11,6 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Consejero",
   },
-  // Esto ayuda a que el icono se vea bien al compartir el link
   openGraph: {
     title: "Consejero del Obrero",
     description: "Biblioteca Digital",
@@ -24,7 +23,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, // Evita que la app se mueva raro al escribir
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -35,7 +34,6 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
-        {/* Etiquetas extra para que el iPhone lo reconozca como App de inmediato */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="icon" href="/icon.png" />
@@ -43,6 +41,23 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-[#fcfaf7]">
         <AuthGuard>{children}</AuthGuard>
+
+        {/* --- ACTIVADOR DE DESCARGA (SERVICE WORKER) --- */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                    console.log('App lista para instalar');
+                  }, function(err) {
+                    console.log('Error en activador:', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
