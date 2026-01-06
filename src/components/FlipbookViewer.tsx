@@ -1,48 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 // @ts-ignore
 import HTMLFlipBook from "react-pageflip";
 import * as pdfjsLib from "pdfjs-dist";
 import { auth } from "@/lib/firebase";
 
-// Worker para pdfjs v5 (compatible en Vercel)
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 type Props = { fileUrl: string };
-
-type Theme = "light" | "sepia" | "dark";
 
 export default function FlipbookViewer({ fileUrl }: Props) {
   const bookRef = useRef<any>(null);
 
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [errMsg, setErrMsg] = useState("");
   const [totalPages, setTotalPages] = useState(0);
   const [currentRender, setCurrentRender] = useState(0);
+  const [errMsg, setErrMsg] = useState("");
 
   const [zoom, setZoom] = useState(1);
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<"light" | "sepia" | "dark">("light");
   const [targetPage, setTargetPage] = useState("");
 
-  // Para que no sea enorme en celular, adaptamos escala/render según pantalla
-  const renderScale = useMemo(() => {
-    if (typeof window === "undefined") return 1.6;
-    const w = window.innerWidth;
-    if (w < 420) return 1.35;
-    if (w < 768) return 1.6;
-    return 2.0;
+  // Nuevo: Modo de vista (Libro 3D vs Ebook Vertical)
+  const [viewMode, setViewMode] = useState<"flip" | "scroll">("flip");
+
+  // Nuevo: Dimensiones dinámicas para evitar cortes
+  const [bookDimensions, setBookDimensions] = useState({ width: 380, height: 550 });
+
+  // Aumentamos calidad de renderizado (Mejor que lo que sugirió ChatGPT)
+  const renderScale = 2.5; 
+
+  // Detectar móvil para sugerir modo scroll
+  useEffect(() => {
+    if (window.innerWidth < 768) setViewMode("scroll");
   }, []);
 
-  // Bloqueos básicos (imprimir/guardar)
+  // Bloqueos de seguridad
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if ((e.ctrlKey || e.metaKey) && (k === "p" || k === "s")) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+      if ((e.ctrlKey || e.metaKey) && (k === "p" || k === "s")) e.preventDefault();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
@@ -51,285 +50,245 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   useEffect(() => {
     let cancelled = false;
 
-    async function renderPdfToImages() {
+    async function renderPdf() {
       try {
-        setLoading(true);
         setErrMsg("");
+        setLoading(true);
         setPages([]);
         setTotalPages(0);
         setCurrentRender(0);
 
-        // IMPORTANTÍSIMO:
-        // fileUrl debe ser tu proxy same-origin (/api/pdf?path=...), NO la URL directa de Firebase,
-        // porque Firebase Storage bloquea CORS al navegador.
-        const res = await fetch(fileUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error("No se pudo obtener el PDF.");
+        // Fetch normal (asumiendo que las reglas de CORS están bien configuradas)
+        const res = await fetch(fileUrl);
+        if (!res.ok) throw new Error("No se pudo descargar el PDF");
 
         const data = await res.arrayBuffer();
-        // @ts-ignore
         const pdf = await pdfjsLib.getDocument({ data }).promise;
 
         if (cancelled) return;
 
         setTotalPages(pdf.numPages);
+        const userMark = auth.currentUser?.email || "Copia Protegida";
+        const imgs: string[] = new Array(pdf.numPages);
 
-        const userMark = (auth.currentUser?.email || "Copia Protegida").slice(0, 60);
-
-        const imgs: string[] = [];
-        const BATCH = 4; // actualiza la UI cada 4 páginas
+        // --- CORRECCIÓN DE PALABRAS CORTADAS ---
+        // Obtenemos la primera página para calcular el tamaño real del libro
+        const firstPage = await pdf.getPage(1);
+        const viewport = firstPage.getViewport({ scale: 1 });
+        const ratio = viewport.width / viewport.height;
+        
+        // Ajustamos el contenedor del libro al ratio del PDF
+        const baseHeight = 550; // Altura fija cómoda
+        const calculatedWidth = Math.floor(baseHeight * ratio);
+        setBookDimensions({ width: calculatedWidth, height: baseHeight });
 
         for (let i = 1; i <= pdf.numPages; i++) {
           if (cancelled) return;
-
           setCurrentRender(i);
 
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: renderScale });
-
+          // Renderizamos con alta calidad
+          const viewportHigh = page.getViewport({ scale: renderScale });
+          
           const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d", { alpha: false });
-
+          const ctx = canvas.getContext("2d");
           if (!ctx) continue;
 
-          canvas.width = Math.floor(viewport.width);
-          canvas.height = Math.floor(viewport.height);
+          canvas.width = Math.floor(viewportHigh.width);
+          canvas.height = Math.floor(viewportHigh.height);
 
-          // pdfjs v5: RenderParameters ahora requiere "canvas" además de canvasContext
-          // @ts-ignore
-          await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+          // Renderizamos
+          await page.render({ canvasContext: ctx, viewport: viewportHigh, canvas }).promise;
 
-          // Marca de agua simple (estable y rápida)
+          // Marca de agua sutil
           ctx.save();
-          const fontSize = Math.max(18, Math.floor(canvas.width / 18));
-          ctx.font = `700 ${fontSize}px serif`;
-          ctx.fillStyle = "rgba(150,150,150,0.16)";
+          ctx.font = `bold ${Math.floor(canvas.width / 20)}px serif`;
+          ctx.fillStyle = "rgba(128, 128, 128, 0.1)"; 
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-
           ctx.translate(canvas.width / 2, canvas.height / 2);
           ctx.rotate(-Math.PI / 4);
           ctx.fillText(userMark, 0, 0);
-
-          ctx.font = `700 ${Math.floor(fontSize / 2.6)}px serif`;
-          ctx.fillText(userMark, 0, canvas.height / 3.2);
-          ctx.fillText(userMark, 0, -canvas.height / 3.2);
           ctx.restore();
 
-          imgs.push(canvas.toDataURL("image/jpeg", 0.78));
+          imgs[i - 1] = canvas.toDataURL("image/jpeg", 0.85);
 
-          // Actualiza en lotes para que no “parpadee”
-          if (i % BATCH === 0 || i === pdf.numPages) {
-            if (cancelled) return;
-            setPages([...imgs]);
+          // Actualización progresiva para modo Scroll
+          if (viewMode === 'scroll' && i % 3 === 0) {
+             setPages([...imgs.filter(Boolean)]);
           }
         }
 
         if (cancelled) return;
+        setPages(imgs.filter(Boolean));
         setLoading(false);
-      } catch (err) {
-        if (cancelled) return;
-        setErrMsg("No se pudo cargar el documento.");
-        setLoading(false);
+      } catch (e) {
+        if (!cancelled) {
+          setErrMsg("No se pudo cargar el documento.");
+          setLoading(false);
+        }
       }
     }
 
-    renderPdfToImages();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fileUrl, renderScale]);
-
-  const progress = totalPages ? Math.round((currentRender / totalPages) * 100) : 0;
-
-  const themeStyles: Record<Theme, string> = {
-    light: "bg-white border-amber-100",
-    sepia: "bg-[#f4ecd8] border-[#e6d5b8]",
-    dark: "bg-[#121212] border-gray-800",
-  };
+    renderPdf();
+    return () => { cancelled = true; };
+  }, [fileUrl, viewMode]);
 
   const goToPage = (e: React.FormEvent) => {
     e.preventDefault();
-    const p = Number(targetPage);
-    if (!Number.isFinite(p)) return;
-    if (p >= 1 && p <= totalPages) {
-      bookRef.current?.pageFlip()?.turnToPage(p - 1);
+    const p = parseInt(targetPage, 10);
+    if (Number.isFinite(p) && p > 0 && p <= totalPages) {
+      if (viewMode === 'flip') {
+        bookRef.current?.pageFlip()?.turnToPage(p - 1);
+      } else {
+        const el = document.getElementById(`page-${p-1}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }
       setTargetPage("");
     }
   };
 
-  // Para evitar errores de typings de react-pageflip en build (son viejos),
-  // lo casteamos a any y le pasamos TODOS los props que pide IProps.
-  const FlipBook: any = HTMLFlipBook;
+  const themeStyles = useMemo(
+    () => ({
+      light: "bg-[#fdfdfd]",
+      sepia: "bg-[#f4ecd8] sepia-[0.2]",
+      dark: "bg-[#121212] invert-[0.9] hue-rotate-180",
+    }),
+    []
+  );
 
   return (
     <div
-      className="w-full flex flex-col items-center gap-6 py-4 select-none"
+      className={`w-full flex flex-col items-center gap-4 py-4 select-none transition-colors duration-500 min-h-screen ${theme === 'dark' ? 'bg-[#1a1a1a]' : 'bg-gray-50'}`}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Barra superior */}
-      <div className="flex flex-wrap items-center justify-center gap-3 px-4 py-3 bg-white/90 backdrop-blur border border-amber-100 rounded-2xl shadow-xl sticky top-2 z-50">
-        {/* Tema */}
-        <div className="flex gap-2 bg-gray-100 p-1 rounded-full">
-          <button
-            aria-label="Tema claro"
-            onClick={() => setTheme("light")}
-            className={`w-6 h-6 rounded-full bg-white border ${theme === "light" ? "ring-2 ring-amber-500" : ""}`}
-          />
-          <button
-            aria-label="Tema sepia"
-            onClick={() => setTheme("sepia")}
-            className={`w-6 h-6 rounded-full bg-[#f4ecd8] border ${theme === "sepia" ? "ring-2 ring-amber-500" : ""}`}
-          />
-          <button
-            aria-label="Tema oscuro"
-            onClick={() => setTheme("dark")}
-            className={`w-6 h-6 rounded-full bg-[#2c2c2c] border ${theme === "dark" ? "ring-2 ring-amber-500" : ""}`}
-          />
+      {/* BARRA DE HERRAMIENTAS FLOTANTE */}
+      <div className="sticky top-4 z-50 flex flex-wrap items-center justify-center gap-3 px-4 py-2 bg-white/90 backdrop-blur-xl border border-amber-100 rounded-full shadow-xl mx-4 max-w-full">
+        
+        {/* SWITCHER DE MODO (Clave para "Ebook") */}
+        <button 
+            onClick={() => setViewMode(viewMode === 'flip' ? 'scroll' : 'flip')}
+            className="flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[10px] font-bold uppercase hover:bg-amber-600 transition-colors shadow-md"
+        >
+            {viewMode === 'flip' ? '📱 Modo Ebook' : '📖 Modo Libro 3D'}
+        </button>
+
+        <div className="w-px h-4 bg-gray-300 hidden sm:block" />
+
+        {/* Temas */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-full">
+          {['light', 'sepia', 'dark'].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTheme(t as any)}
+              className={`w-6 h-6 rounded-full border transition-transform ${theme === t ? "ring-2 ring-amber-500 scale-110" : "opacity-50"} ${t==='light'?'bg-white':t==='sepia'?'bg-[#f4ecd8]':'bg-[#2c2c2c]'}`}
+              title={`Tema ${t}`}
+            />
+          ))}
         </div>
 
-        <div className="w-px h-6 bg-amber-100 hidden sm:block" />
+        {/* Zoom (Solo visible en modo Flip, en Ebook se usa el del celular) */}
+        {viewMode === 'flip' && (
+            <>
+                <div className="w-px h-4 bg-gray-300 hidden sm:block" />
+                <div className="flex items-center border rounded-full px-2 bg-white">
+                  <button className="px-2 font-bold hover:text-amber-600" onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))}>–</button>
+                  <button className="px-2 font-bold hover:text-amber-600" onClick={() => setZoom((z) => Math.min(1.6, +(z + 0.1).toFixed(2)))}>+</button>
+                </div>
+            </>
+        )}
 
         {/* Ir a página */}
-        <form onSubmit={goToPage} className="flex items-center gap-2">
+        <form onSubmit={goToPage} className="flex items-center gap-1 border-l pl-3 border-gray-200">
           <input
             type="number"
-            inputMode="numeric"
-            placeholder="Pág"
-            className="w-16 px-2 py-1 text-[10px] border rounded-lg outline-none focus:border-amber-500"
+            placeholder="#"
+            className="w-10 px-1 py-1 text-[10px] text-center border rounded outline-none focus:border-amber-500"
             value={targetPage}
             onChange={(e) => setTargetPage(e.target.value)}
           />
-          <button type="submit" className="text-[10px] font-bold uppercase text-amber-700">
-            Ir
-          </button>
         </form>
-
-        <div className="w-px h-6 bg-amber-100" />
-
-        {/* Zoom */}
-        <div className="flex items-center gap-2">
-          <button
-            className="w-8 h-8 rounded-full border hover:bg-black hover:text-white transition-colors"
-            onClick={() => setZoom((z) => Math.max(0.7, +(z - 0.1).toFixed(2)))}
-          >
-            –
-          </button>
-          <span className="text-[10px] w-12 text-center font-black">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            className="w-8 h-8 rounded-full border hover:bg-black hover:text-white transition-colors"
-            onClick={() => setZoom((z) => Math.min(1.4, +(z + 0.1).toFixed(2)))}
-          >
-            +
-          </button>
-        </div>
-
-        {/* Navegación */}
-        <div className="flex gap-2">
-          <button
-            className="px-4 py-2 rounded-full border text-[10px] font-bold uppercase hover:bg-black hover:text-white transition-all"
-            onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-          >
-            Anterior
-          </button>
-          <button
-            className="px-4 py-2 rounded-full bg-black text-white text-[10px] font-bold uppercase hover:bg-amber-700 transition-all shadow-lg"
-            onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-          >
-            Siguiente
-          </button>
-        </div>
       </div>
 
-      {/* Contenedor */}
-      <div
-        className={`relative flex items-center justify-center rounded-[2.5rem] p-4 sm:p-10 min-h-[520px] sm:min-h-[760px] w-full max-w-6xl overflow-hidden border shadow-inner transition-colors ${themeStyles[theme]}`}
-      >
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/95 z-20 rounded-[2.5rem]">
-            <div className="w-12 h-12 border-2 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-            <p className="text-[11px] uppercase tracking-[0.4em] font-black text-amber-900/40 italic">
-              Preparando lectura… {progress}%
-            </p>
-          </div>
-        )}
+      {/* ERROR / CARGA */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+           <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
+           <p className="text-xs text-amber-800 font-bold uppercase tracking-widest">Preparando Obra...</p>
+        </div>
+      )}
+      
+      {errMsg && <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">{errMsg}</div>}
 
-        {errMsg && !loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white z-30 rounded-[2.5rem]">
-            <p className="text-red-600 text-sm bg-red-50 px-4 py-2 rounded-lg border border-red-100">
-              {errMsg}
-            </p>
-          </div>
-        )}
 
-        <div
-          className="transition-transform duration-300 ease-out"
-          style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
-        >
-          {pages.length > 0 && (
-            <FlipBook
-              ref={bookRef}
-              // Tamaño base (se ve bien en móvil y desktop)
-              width={380}
-              height={560}
-              size="fixed"
-              minWidth={320}
-              maxWidth={520}
-              minHeight={460}
-              maxHeight={760}
-              autoSize={true}
-              showCover={true}
-              mobileScrollSupport={true}
-              drawShadow={true}
-              maxShadowOpacity={0.35}
-              flippingTime={850}
-              usePortrait={true}
-              startPage={0}
-              startZIndex={0}
-              clickEventForward={true}
-              useMouseEvents={true}
-              swipeDistance={30}
-              showPageCorners={true}
-              disableFlipByClick={false}
-              className="book-main"
-              style={{ margin: "0 auto" }}
-            >
+      {/* --- MODO LIBRO 3D (PC / Estético) --- */}
+      {viewMode === 'flip' && !loading && pages.length > 0 && (
+         <div className={`relative flex items-center justify-center p-4 sm:p-10 transition-all duration-500 ${themeStyles[theme]}`}>
+            <div style={{ transform: `scale(${zoom})`, transformOrigin: "top center", transition: "transform 0.3s" }}>
+                <HTMLFlipBook
+                  ref={bookRef}
+                  width={bookDimensions.width} // ANCHO CALCULADO AUTOMÁTICAMENTE
+                  height={bookDimensions.height} // ALTO FIJO
+                  size="fixed" // Fixed evita saltos raros
+                  minWidth={300} maxWidth={600}
+                  minHeight={400} maxHeight={800}
+                  drawShadow={true}
+                  showCover={true}
+                  mobileScrollSupport={false} 
+                  className="book-main shadow-2xl"
+                  startPage={0}
+                  startZIndex={0}
+                  autoSize={true}
+                  clickEventForward={true}
+                  useMouseEvents={true}
+                  showPageCorners={true}
+                  disableFlipByClick={false}
+                >
+                  {pages.map((src, idx) => (
+                    <div key={idx} className="bg-white border-l border-gray-50 overflow-hidden relative">
+                      {/* object-contain con padding evita cortes de palabras en los bordes */}
+                      <div className="w-full h-full p-2 flex items-center justify-center">
+                          <img src={src} className="max-w-full max-h-full object-contain shadow-sm" draggable={false} />
+                      </div>
+                      <div className="absolute bottom-2 w-full text-center text-[8px] text-gray-400 font-serif">— {idx + 1} —</div>
+                    </div>
+                  ))}
+                </HTMLFlipBook>
+            </div>
+         </div>
+      )}
+
+
+      {/* --- MODO EBOOK / ESTUDIO (Celular / Lectura Vertical) --- */}
+      {viewMode === 'scroll' && !loading && pages.length > 0 && (
+          <div className={`w-full max-w-3xl px-2 sm:px-0 flex flex-col gap-6 pb-20 ${themeStyles[theme]}`}>
+              <div className="text-center py-2 text-[10px] text-gray-400 uppercase tracking-widest">
+                  Modo Estudio — Desliza y haz Zoom libremente
+              </div>
+              
               {pages.map((src, idx) => (
-                <div key={idx} className="bg-white border-l border-gray-100 relative overflow-hidden">
-                  <img
-                    src={src}
-                    alt={`Página ${idx + 1}`}
-                    className="w-full h-full object-contain pointer-events-none"
-                    draggable={false}
-                  />
-                  <div className="absolute bottom-3 w-full text-center text-[9px] text-gray-300 font-serif italic tracking-widest">
-                    — {idx + 1} de {totalPages} —
+                  <div 
+                    key={idx} 
+                    id={`page-${idx}`}
+                    className="relative w-full bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 group"
+                  >
+                      <img 
+                        src={src} 
+                        className="w-full h-auto object-contain" 
+                        loading="lazy" 
+                        alt={`Página ${idx + 1}`} 
+                      />
+                      <div className="absolute bottom-2 right-2 bg-black/70 text-white px-3 py-1 rounded-full text-[10px] font-bold opacity-50 group-hover:opacity-100 transition-opacity">
+                          {idx + 1}
+                      </div>
                   </div>
-                </div>
               ))}
-            </FlipBook>
-          )}
-        </div>
-      </div>
-
-      <div className="text-center opacity-50">
-        <p className="text-[10px] uppercase tracking-[0.4em] font-black text-gray-500">
-          Jose Enrique Perez Leon
-        </p>
-        <p className="text-[9px] italic text-gray-400 mt-1">
-          Visualización protegida con marca de agua
-        </p>
-      </div>
+          </div>
+      )}
 
       <style jsx global>{`
-        .book-main {
-          background: transparent;
-        }
-        input[type="number"]::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-        }
+        .book-main { background: transparent; }
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
       `}</style>
     </div>
   );
