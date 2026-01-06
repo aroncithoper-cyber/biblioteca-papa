@@ -42,7 +42,7 @@ export default function Header() {
           <div className="relative">
             <div className="absolute -inset-1 bg-amber-200 rounded-full blur opacity-0 group-hover:opacity-40 transition-opacity" />
             <img
-              src="/icon.png"
+              src="/icon-192.png
               className="relative w-8 h-8 rounded-full grayscale group-hover:grayscale-0 transition-all duration-500 border border-amber-100 p-0.5 bg-white"
               alt="Logo"
             />

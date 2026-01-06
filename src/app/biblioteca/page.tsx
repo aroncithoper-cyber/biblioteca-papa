@@ -80,8 +80,9 @@ export default function BibliotecaPage() {
       <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-16 sm:pb-20 text-center animate-in">
         <div className="flex justify-center items-center gap-6 mb-8 sm:mb-10">
           <div className="h-px w-12 sm:w-16 bg-gradient-to-r from-transparent to-amber-200"></div>
+          {/* RUTA ACTUALIZADA A 512 */}
           <img
-            src="/icon.png"
+            src="/icon-512.png"
             className="w-12 h-12 sm:w-14 sm:h-14 grayscale opacity-40"
             alt="Logo"
           />
@@ -180,8 +181,9 @@ export default function BibliotecaPage() {
 
       {/* FOOTER */}
       <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-24 sm:py-32 text-center">
+        {/* RUTA ACTUALIZADA A 512 */}
         <img
-          src="/icon.png"
+          src="/icon-512.png"
           className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-8 sm:mb-10 grayscale opacity-20"
           alt=""
         />
@@ -196,7 +198,7 @@ export default function BibliotecaPage() {
   );
 }
 
-/* BOOK CARD (con lógica de WhatsApp intacta) */
+/* BOOK CARD */
 function BookCard({
   doc,
   index,
@@ -270,8 +272,9 @@ function BookCard({
             <h4 className="text-white text-sm sm:text-base font-bold leading-relaxed line-clamp-4">
               {doc.title}
             </h4>
+            {/* RUTA ACTUALIZADA A 512 */}
             <img
-              src="/icon.png"
+              src="/icon-512.png"
               className="w-6 h-6 mx-auto opacity-30"
               alt=""
             />
