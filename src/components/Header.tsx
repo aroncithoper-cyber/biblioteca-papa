@@ -36,7 +36,7 @@ export default function Header() {
   // Función para soporte por WhatsApp
   const handleSupport = () => {
     const message = encodeURIComponent("Hola, necesito ayuda con la plataforma Consejero del Obrero.");
-    window.open(`https://wa.me/521XXXXXXXXXX?text=${message}`, "_blank"); // Reemplaza las X con tu número
+    window.open(`https://wa.me/5215530270067?text=${message}`, "_blank"); // Reemplaza las X con tu número
   };
 
   return (
