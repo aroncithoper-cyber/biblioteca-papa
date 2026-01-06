@@ -289,7 +289,7 @@ function BookCard({
 
         {hasAccess ? (
           <Link
-            href={`/documento/${doc.id}`}
+            href={`/documentos/${doc.id}`}
             className="inline-flex items-center justify-center w-full py-4 sm:py-5 bg-black text-white text-[10px] sm:text-[11px] font-black uppercase tracking-[0.4em] rounded-full hover:bg-amber-600 transition-all shadow-xl"
           >
             Iniciar Lectura
