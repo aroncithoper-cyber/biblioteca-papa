@@ -57,7 +57,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
   }, []);
 
-  // Renderizar PDF (una sola vez por fileUrl)
+  // Renderizar PDF
   useEffect(() => {
     let cancelled = false;
     const ac = new AbortController();
@@ -82,7 +82,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
         setTotalPages(pdfDoc.numPages);
 
-        // Calcular tamaño ideal del libro basado en la primera página
+        // Calcular tamaño ideal del libro
         const firstPage = await pdfDoc.getPage(1);
         const vp1 = firstPage.getViewport({ scale: 1 });
         const ratio = vp1.width / vp1.height;
@@ -91,13 +91,10 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         setBookDimensions({ width, height: baseHeight });
 
         const userMark = auth.currentUser?.email || "Copia Protegida";
-
-        // Array fijo para mantener orden y evitar rearmar todo
         const imgs: string[] = new Array(pdfDoc.numPages);
 
         for (let i = 1; i <= pdfDoc.numPages; i++) {
           if (cancelled) return;
-
           setCurrentRender(i);
 
           const page = await pdfDoc.getPage(i);
@@ -110,10 +107,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);
 
-          // pdfjs v5 pide también canvas en los tipos
-          await page
-            .render({ canvasContext: ctx, viewport, canvas } as any)
-            .promise;
+          await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
 
           // Marca de agua sutil
           ctx.save();
@@ -129,7 +123,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
           imgs[i - 1] = canvas.toDataURL("image/jpeg", 0.85);
 
-          // Progresivo sin filter(Boolean) (evita rearmar masivo cada vez)
           if (i === 1 || i % 4 === 0 || i === pdfDoc.numPages) {
             const partial = imgs.slice(0, i).filter(Boolean);
             setPages(partial);
@@ -152,9 +145,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     return () => {
       cancelled = true;
       ac.abort();
-      try {
-        pdfDoc?.destroy?.();
-      } catch {}
+      try { pdfDoc?.destroy?.(); } catch {}
     };
   }, [fileUrl]);
 
@@ -228,28 +219,25 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           ))}
         </div>
 
-        {viewMode === "flip" && (
-          <>
-            <div className="w-px h-4 bg-gray-300 hidden sm:block" />
-            <div className="flex items-center border rounded-full px-2 bg-white">
-              <button
-                className="px-2 font-bold hover:text-amber-600"
-                onClick={() => setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.7, 1.6))}
-              >
-                –
-              </button>
-              <span className="text-[10px] w-10 text-center font-black">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                className="px-2 font-bold hover:text-amber-600"
-                onClick={() => setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.7, 1.6))}
-              >
-                +
-              </button>
-            </div>
-          </>
-        )}
+        {/* --- BOTONES DE ZOOM (AHORA VISIBLES EN AMBOS MODOS) --- */}
+        <div className="w-px h-4 bg-gray-300 hidden sm:block" />
+        <div className="flex items-center border rounded-full px-2 bg-white">
+          <button
+            className="px-2 font-bold hover:text-amber-600"
+            onClick={() => setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, 3.0))}
+          >
+            –
+          </button>
+          <span className="text-[10px] w-10 text-center font-black">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            className="px-2 font-bold hover:text-amber-600"
+            onClick={() => setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.5, 3.0))}
+          >
+            +
+          </button>
+        </div>
 
         <form onSubmit={goToPage} className="flex items-center gap-1 border-l pl-3 border-gray-200">
           <input
@@ -349,12 +337,14 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             Lectura Continua
           </div>
 
+          {/* CONTENEDOR CON ZOOM APLICADO */}
           <div
-            className="w-full"
+            className="w-full transition-transform duration-200 ease-out origin-top"
             style={{
+              transform: `scale(${zoom})`,
+              // Ajustamos la interacción para que sea fluida
               overscrollBehavior: "contain",
               WebkitOverflowScrolling: "touch",
-              touchAction: "pan-y pinch-zoom",
             }}
           >
             {pages.map((src, idx) => (

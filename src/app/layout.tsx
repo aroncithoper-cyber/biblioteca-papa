@@ -48,12 +48,13 @@ export const metadata: Metadata = {
   },
 };
 
+// --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE PARA EL ZOOM CON DEDOS ---
 export const viewport: Viewport = {
   themeColor: "#fcfaf7",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false, // Bloqueamos el zoom del navegador para que la App se sienta nativa
+  maximumScale: 5, // Permitimos hasta 5x de zoom
+  userScalable: true, // ¡ACTIVADO! Para que funcionen los dedos en el celular
 };
 
 export default function RootLayout({
