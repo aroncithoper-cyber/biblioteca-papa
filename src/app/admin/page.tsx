@@ -13,7 +13,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { db, storage, auth } from "@/lib/firebase"; // Asegúrate de exportar 'auth' en tu firebase.ts
+import { db, storage, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
@@ -36,12 +36,9 @@ export default function AdminPage() {
   const [editTitle, setEditTitle] = useState("");
   const router = useRouter();
 
-  // 1. Protección de Ruta (Solo usuarios logueados por ahora)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        router.push("/"); // Si no hay usuario, fuera al home
-      }
+      if (!user) router.push("/"); 
     });
     return () => unsubscribe();
   }, [router]);
@@ -56,11 +53,8 @@ export default function AdminPage() {
     loadDocs().catch(console.error);
   }, []);
 
-  // SUBIR NUEVO
   const upload = async () => {
-    if (!title.trim()) return alert("Pon un título");
-    if (!file) return alert("Selecciona un PDF");
-
+    if (!title.trim() || !file) return alert("Completa todos los campos");
     setLoading(true);
     try {
       const storagePath = `pdfs/${Date.now()}-${file.name}`;
@@ -78,15 +72,14 @@ export default function AdminPage() {
       setTitle("");
       setFile(null);
       await loadDocs();
-      alert("Volumen guardado con éxito ✅");
+      alert("Volumen publicado correctamente ✅");
     } catch (e) {
-      alert("Error al subir");
+      alert("Error en la carga");
     } finally {
       setLoading(false);
     }
   };
 
-  // EDITAR TÍTULO
   const saveTitleEdit = async (id: string) => {
     if (!editTitle.trim()) return;
     try {
@@ -94,121 +87,138 @@ export default function AdminPage() {
       setEditingId(null);
       await loadDocs();
     } catch (e) {
-      alert("No se pudo actualizar el nombre");
+      alert("Error al actualizar");
     }
   };
 
-  // ELIMINAR DOCUMENTO
   const deleteDocument = async (d: DocItem) => {
-    if (!confirm(`¿Seguro que quieres borrar "${d.title}"?`)) return;
-
+    if (!confirm(`¿Borrar permanentemente "${d.title}"?`)) return;
     try {
-      // 1. Borrar de Storage
       const fileRef = ref(storage, d.storagePath);
-      await deleteObject(fileRef).catch(() => console.log("Archivo no estaba en storage"));
-      
-      // 2. Borrar de Firestore
+      await deleteObject(fileRef).catch(() => console.log("No estaba en storage"));
       await deleteDoc(doc(db, "documents", d.id));
       await loadDocs();
-      alert("Borrado correctamente");
     } catch (e) {
       alert("Error al eliminar");
     }
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 font-sans">
+    <main className="min-h-screen bg-[#fcfaf7] font-serif">
       <Header />
 
-      <section className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Panel de Control</h1>
-          <Link href="/" className="text-sm text-gray-500 hover:underline">Ir a la biblioteca</Link>
+      <section className="max-w-5xl mx-auto px-6 py-16">
+        {/* Cabecera del Panel */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16 border-b border-amber-100 pb-10">
+          <div>
+            <span className="text-amber-600 font-bold text-[10px] uppercase tracking-[0.4em] mb-4 block">Gestión Editorial</span>
+            <h1 className="text-5xl font-bold text-gray-900 tracking-tighter">Panel de Control</h1>
+          </div>
+          <Link href="/biblioteca" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors flex items-center gap-2">
+            Ver Biblioteca <span>→</span>
+          </Link>
         </div>
 
-        {/* Formulario de Carga */}
-        <div className="bg-white border shadow-sm rounded-2xl p-8 mb-10">
-          <h2 className="text-lg font-semibold mb-4">Publicar Nuevo Volumen</h2>
-          <div className="grid gap-4">
-            <input
-              className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-black outline-none transition-all"
-              placeholder="Ej: Consejero del Obrero 1-2026"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <div className="flex flex-col sm:flex-row gap-4 items-center">
+        {/* Formulario de Carga Estilo Tarjeta */}
+        <div className="bg-white rounded-[40px] shadow-2xl shadow-amber-900/5 p-8 md:p-12 mb-20 border border-amber-50">
+          <div className="flex items-center gap-4 mb-10">
+            <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white font-bold">+</div>
+            <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Publicar Nuevo Volumen</h2>
+          </div>
+          
+          <div className="grid gap-8">
+            <div className="space-y-3">
+              <label className="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-400 ml-4">Título de la Obra</label>
               <input
-                type="file"
-                accept="application/pdf"
-                className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="w-full bg-[#fcfaf7] border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-lg font-medium shadow-inner"
+                placeholder="Ej: Consejero — I Trimestre 2026"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
               />
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-6 items-center">
+              <div className="w-full relative group">
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="w-full py-4 px-6 rounded-2xl bg-white border-2 border-dashed border-amber-100 flex items-center justify-between group-hover:bg-amber-50 transition-colors">
+                  <span className="text-sm text-gray-400 italic">
+                    {file ? file.name : "Seleccionar PDF..."}
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-600 uppercase">Adjuntar</span>
+                </div>
+              </div>
+              
               <button
                 onClick={upload}
                 disabled={loading}
-                className="w-full sm:w-48 px-6 py-3 rounded-xl bg-black text-white font-bold hover:bg-gray-800 disabled:bg-gray-400 transition-all shadow-lg"
+                className="w-full md:w-64 py-4 rounded-2xl bg-black text-white font-bold text-xs uppercase tracking-[0.3em] hover:bg-amber-600 disabled:bg-gray-200 transition-all shadow-xl shadow-black/10 active:scale-95"
               >
-                {loading ? "Procesando..." : "Subir Libro"}
+                {loading ? "Subiendo..." : "Publicar Ahora"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Lista de Documentos */}
+        {/* Listado de Gestión */}
         <div>
-          <h2 className="font-bold text-xl mb-6 flex items-center gap-2">
-            Gestión de Biblioteca <span className="text-xs font-normal text-gray-400">({docs.length} unidades)</span>
+          <h2 className="font-bold text-xs uppercase tracking-[0.5em] text-gray-400 mb-10 flex items-center gap-4">
+            Archivo Publicado <span className="h-px flex-1 bg-amber-100"></span> <span>{docs.length}</span>
           </h2>
 
-          <div className="grid gap-4">
+          <div className="space-y-4">
             {docs.map((d) => (
-              <div key={d.id} className="bg-white border rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 hover:shadow-md transition-shadow">
+              <div key={d.id} className="bg-white/60 backdrop-blur-md border border-white rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 hover:shadow-xl hover:bg-white transition-all duration-500">
                 
                 <div className="flex-1 w-full">
                   {editingId === d.id ? (
-                    <div className="flex gap-2 w-full">
+                    <div className="flex gap-2 w-full animate-in fade-in zoom-in duration-300">
                       <input 
-                        className="border rounded-lg px-3 py-1 text-sm w-full"
+                        className="bg-[#fcfaf7] border-none rounded-xl px-4 py-2 text-sm w-full outline-none ring-1 ring-amber-200"
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
                         autoFocus
                       />
-                      <button onClick={() => saveTitleEdit(d.id)} className="text-green-600 text-xs font-bold uppercase">Guardar</button>
-                      <button onClick={() => setEditingId(null)} className="text-gray-400 text-xs font-bold uppercase">X</button>
+                      <button onClick={() => saveTitleEdit(d.id)} className="bg-black text-white px-4 rounded-xl text-[10px] font-bold uppercase">OK</button>
+                      <button onClick={() => setEditingId(null)} className="text-gray-400 px-2 font-bold">✕</button>
                     </div>
                   ) : (
-                    <div className="group flex items-center gap-3">
-                      <span className="font-bold text-gray-800">{d.title}</span>
+                    <div className="group flex items-center gap-4">
+                      <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                      <span className="font-bold text-gray-800 text-lg tracking-tight">{d.title}</span>
                       <button 
                         onClick={() => { setEditingId(d.id); setEditTitle(d.title); }}
-                        className="opacity-0 group-hover:opacity-100 text-[10px] text-blue-500 font-bold uppercase tracking-widest transition-opacity"
+                        className="opacity-0 group-hover:opacity-100 text-[9px] text-amber-600 font-bold uppercase tracking-widest transition-all hover:underline"
                       >
-                        [ Editar Nombre ]
+                        [ Editar ]
                       </button>
                     </div>
                   )}
-                  <p className="text-[10px] text-gray-400 font-mono mt-1 truncate max-w-xs">{d.fileUrl}</p>
                 </div>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="flex items-center gap-4 w-full md:w-auto">
                   <Link
-                    className="flex-1 text-center text-xs px-4 py-2.5 rounded-lg border border-gray-900 font-bold hover:bg-gray-900 hover:text-white transition-all"
-                    href={`/documentos/${d.id}`}
+                    className="flex-1 md:flex-none text-center text-[10px] px-6 py-3 rounded-xl border border-gray-100 font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-all"
+                    href={`/documento/${d.id}`}
                   >
-                    PREVISUALIZAR
+                    Ver
                   </Link>
                   <button
                     onClick={() => deleteDocument(d)}
-                    className="px-4 py-2.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold hover:bg-red-600 hover:text-white transition-all"
+                    className="px-6 py-3 rounded-xl bg-red-50 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
                   >
-                    BORRAR
+                    Borrar
                   </button>
                 </div>
               </div>
             ))}
 
             {docs.length === 0 && !loading && (
-              <div className="text-center py-20 text-gray-400 italic">No hay registros en la base de datos.</div>
+              <div className="text-center py-20 text-gray-400 italic font-serif">La biblioteca está esperando su primer volumen...</div>
             )}
           </div>
         </div>

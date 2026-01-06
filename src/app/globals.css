@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  /* Color de fondo tipo papel marfil muy suave para no cansar la vista */
-  --background: #fdfdfd; 
+  /* Color crema tipo papel editorial para máxima elegancia */
+  --background: #fcfaf7; 
   --foreground: #1a1a1a;
-  --accent-gold: #b45309; /* Ámbar para detalles elegantes */
+  --accent-gold: #b45309; 
 }
 
 @theme inline {
@@ -13,18 +13,10 @@
   --color-accent: var(--accent-gold);
 }
 
-/* Forzamos que el sitio mantenga su elegancia incluso en modo oscuro */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #121212;
-    --foreground: #f5f5f5;
-  }
-}
-
+/* Forzamos el estilo elegante incluso en móviles */
 body {
   background: var(--background);
   color: var(--foreground);
-  /* Optimizamos la renderización de fuentes para que se vean "de imprenta" */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -32,43 +24,42 @@ body {
 
 /* --- CLASES DE ESTILO EDITORIAL --- */
 
-/* Efecto de sombra para que los libros parezcan objetos físicos */
+/* Efecto de profundidad para los libros */
 .book-shadow {
   box-shadow: 
-    5px 5px 15px rgba(0, 0, 0, 0.2),
-    15px 15px 35px rgba(0, 0, 0, 0.1);
+    0 20px 25px -5px rgb(0 0 0 / 0.1), 
+    0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
-/* Animación de entrada suave para toda la página */
+/* Animación de entrada suave mejorada */
 .animate-in {
-  animation: fadeIn 0.8s ease-out forwards;
+  animation: fadeIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(15px); }
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Personalización de la barra de desplazamiento (Scrollbar) */
+/* Scrollbar minimalista para no romper el diseño */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #e5e7eb;
   border-radius: 10px;
-  border: 2px solid var(--background);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #d1d5db;
 }
 
-/* Evitar que se seleccione texto en el visor de lectura */
+/* Protección de contenido */
 .select-none {
   user-select: none;
   -webkit-user-select: none;

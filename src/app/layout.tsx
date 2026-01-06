@@ -8,16 +8,17 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Consejero",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: "#fcfaf7", // Cambiado al color crema para que combine con el diseño
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -29,8 +30,9 @@ export default function RootLayout({
     <html lang="es">
       <head>
         <link rel="icon" href="/icon.png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
       </head>
-      <body>
+      <body className="antialiased bg-[#fcfaf7]">
         <AuthGuard>{children}</AuthGuard>
       </body>
     </html>
