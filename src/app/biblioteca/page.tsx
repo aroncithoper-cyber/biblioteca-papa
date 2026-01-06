@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import Header from "@/components/Header";
@@ -12,7 +12,7 @@ type DocItem = {
   title: string;
   coverUrl?: string;
   isPublic?: boolean;
-  authorizedEmails?: string[]; // Lista de correos con acceso
+  authorizedEmails?: string[];
   createdAt?: any;
 };
 
@@ -23,12 +23,10 @@ export default function BibliotecaPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    // 1. Detectar el correo del usuario logueado
     const unsub = onAuthStateChanged(auth, (user) => {
       setUserEmail(user?.email?.toLowerCase() || null);
     });
 
-    // 2. Cargar los documentos
     (async () => {
       const q = query(collection(db, "documents"), orderBy("createdAt", "desc"));
       const snap = await getDocs(q);
@@ -40,7 +38,6 @@ export default function BibliotecaPage() {
     return () => unsub();
   }, []);
 
-  // Filtrado por búsqueda y tipo (Público/Privado)
   const filteredPrivate = docs.filter(d => !d.isPublic && d.title.toLowerCase().includes(searchTerm.toLowerCase()));
   const filteredPublic = docs.filter(d => d.isPublic && d.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -48,7 +45,6 @@ export default function BibliotecaPage() {
     <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
 
-      {/* Hero Section */}
       <section className="max-w-6xl mx-auto px-6 pt-32 pb-20 text-center animate-in">
         <div className="flex justify-center items-center gap-6 mb-10">
           <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-200"></div>
@@ -63,7 +59,6 @@ export default function BibliotecaPage() {
         </p>
       </section>
 
-      {/* Buscador */}
       <section className="max-w-6xl mx-auto px-6 py-12 sticky top-4 z-40">
         <div className="relative max-w-xl mx-auto">
           <div className="relative backdrop-blur-xl bg-white/60 p-2 rounded-full border border-white shadow-2xl">
@@ -79,7 +74,6 @@ export default function BibliotecaPage() {
         </div>
       </section>
 
-      {/* SECCIÓN 1: COLECCIÓN EDITORIAL (CON CANDADOS) */}
       <section className="max-w-7xl mx-auto px-6 pb-20">
         <div className="flex items-center justify-between mb-16 border-b border-amber-100 pb-8">
           <div className="space-y-1">
@@ -93,17 +87,15 @@ export default function BibliotecaPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-32 gap-x-16">
             {filteredPrivate.map((d, index) => {
-              // VALIDACIÓN: ¿El correo del usuario está en la lista de autorizados?
               const hasAccess = d.authorizedEmails?.includes(userEmail || "");
               return (
-                <BookCard key={d.id} doc={d} index={index} hasAccess={hasAccess} />
+                <BookCard key={d.id} doc={d} index={index} hasAccess={hasAccess} userEmail={userEmail} />
               );
             })}
           </div>
         )}
       </section>
 
-      {/* SECCIÓN 2: HISTORIA Y LEGADO (PÚBLICA - SIN CANDADOS) */}
       {filteredPublic.length > 0 && (
         <section className="max-w-7xl mx-auto px-6 pb-40 mt-20">
           <div className="flex items-center justify-between mb-16 border-b border-gray-200 pb-8">
@@ -114,13 +106,12 @@ export default function BibliotecaPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-32 gap-x-16">
             {filteredPublic.map((d, index) => (
-              <BookCard key={d.id} doc={d} index={index} hasAccess={true} />
+              <BookCard key={d.id} doc={d} index={index} hasAccess={true} userEmail={userEmail} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Footer Pro */}
       <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-32 text-center">
           <img src="/icon.png" className="w-14 h-14 mx-auto mb-10 grayscale opacity-20" alt="" />
           <p className="text-[12px] uppercase tracking-[0.8em] text-gray-400 font-bold mb-8">Jose Enrique Perez Leon</p>
@@ -130,19 +121,43 @@ export default function BibliotecaPage() {
   );
 }
 
-// Sub-componente de Tarjeta con Lógica de Acceso
-function BookCard({ doc, index, hasAccess }: { doc: DocItem, index: number, hasAccess: boolean | undefined }) {
+function BookCard({ doc, index, hasAccess, userEmail }: { doc: DocItem, index: number, hasAccess: boolean | undefined, userEmail: string | null }) {
+  const [showModal, setShowModal] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSending(true);
+    try {
+      await addDoc(collection(db, "requests"), {
+        bookTitle: doc.title,
+        bookId: doc.id,
+        userEmail: userEmail,
+        whatsapp: phone,
+        status: "pendiente",
+        createdAt: serverTimestamp(),
+      });
+      alert("Solicitud enviada con éxito. El administrador te contactará pronto. ✅");
+      setShowModal(false);
+      setPhone("");
+    } catch (error) {
+      alert("Error al enviar la solicitud.");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="group flex flex-col items-center animate-in" style={{ animationDelay: `${index * 100}ms` }}>
       <div className={`relative w-64 h-80 transition-all duration-1000 ${hasAccess ? 'group-hover:-translate-y-6 group-hover:rotate-3 group-hover:scale-105' : 'opacity-80 shadow-none'}`}>
         
-        {/* EFECTO DE CANDADO SI NO TIENE ACCESO */}
         {!hasAccess && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] rounded-r-2xl">
-            <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-4 border border-white/20">
-              <span className="text-3xl text-white">🔒</span>
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] rounded-r-2xl">
+            <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 border border-white/20">
+              <span className="text-2xl text-white">🔒</span>
             </div>
-            <span className="text-[9px] font-black text-white uppercase tracking-[0.3em]">Acceso Protegido</span>
+            <span className="text-[8px] font-black text-white uppercase tracking-[0.4em]">Contenido Protegido</span>
           </div>
         )}
 
@@ -175,13 +190,53 @@ function BookCard({ doc, index, hasAccess }: { doc: DocItem, index: number, hasA
           </Link>
         ) : (
           <button 
-            disabled 
-            className="w-full py-5 bg-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] rounded-full border border-gray-200 cursor-not-allowed"
+            onClick={() => setShowModal(true)}
+            className="w-full py-5 bg-white text-amber-600 text-[10px] font-black uppercase tracking-[0.3em] rounded-full border-2 border-amber-100 hover:bg-amber-50 transition-all shadow-lg active:scale-95"
           >
-            Adquirir Acceso
+            Solicitar Acceso
           </button>
         )}
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full shadow-2xl animate-in zoom-in duration-300 relative">
+            <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 text-gray-300 hover:text-black transition-colors">✕</button>
+            <div className="text-center mb-8">
+               <span className="text-2xl mb-4 block">📖</span>
+               <h3 className="text-2xl font-bold text-gray-900 tracking-tighter">Solicitar Volumen</h3>
+               <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-2">Déjanos tu WhatsApp para darte acceso</p>
+            </div>
+            
+            <form onSubmit={handleRequest} className="space-y-5">
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase font-bold text-amber-600 ml-2">Usuario</label>
+                <div className="w-full bg-gray-50 rounded-2xl px-5 py-3 text-xs text-gray-400 italic border border-gray-100">
+                  {userEmail || "Inicia sesión primero"}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase font-bold text-amber-600 ml-2">WhatsApp / Teléfono</label>
+                <input 
+                  required
+                  type="tel"
+                  placeholder="+52 55..."
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-[#fcfaf7] border border-amber-100 rounded-2xl px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-amber-200 transition-all"
+                />
+              </div>
+              <button 
+                type="submit"
+                disabled={sending || !userEmail}
+                className="w-full py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-[0.4em] hover:bg-amber-600 transition-all disabled:opacity-20 shadow-xl shadow-black/10"
+              >
+                {sending ? "Enviando..." : "Enviar Solicitud"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
