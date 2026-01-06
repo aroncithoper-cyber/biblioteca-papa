@@ -12,7 +12,7 @@ export default function DocumentoPage() {
   const router = useRouter();
 
   const [title, setTitle] = useState("");
-  const [pdfProxyUrl, setPdfProxyUrl] = useState("");
+  const [pdfUrl, setPdfUrl] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,9 +20,11 @@ export default function DocumentoPage() {
 
     (async () => {
       try {
+        if (!id) return;
+
         const snap = await getDoc(doc(db, "documents", id));
         if (!snap.exists()) {
-          router.push("/");
+          router.push("/biblioteca");
           return;
         }
 
@@ -31,18 +33,19 @@ export default function DocumentoPage() {
 
         setTitle(data.title || "Volumen de Estudio");
 
-        const storagePath = data.storagePath;
-        if (!storagePath) {
-          console.error("Falta storagePath en Firestore");
-          router.push("/");
+        // ✅ USAR DIRECTO EL fileUrl DE FIREBASE (NO proxy)
+        const fileUrl = data.fileUrl;
+        if (!fileUrl) {
+          console.error("Falta fileUrl en Firestore");
+          router.push("/biblioteca");
           return;
         }
 
-        setPdfProxyUrl(`/api/pdf?path=${encodeURIComponent(storagePath)}`);
+        setPdfUrl(fileUrl);
         setLoading(false);
       } catch (err) {
         console.error(err);
-        router.push("/");
+        router.push("/biblioteca");
       }
     })();
 
@@ -56,11 +59,11 @@ export default function DocumentoPage() {
       <Header />
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        {/* Navegación Superior Estilo Editorial */}
+        {/* Navegación Superior */}
         <div className="flex items-center justify-between mb-12 border-b border-amber-100 pb-6">
           <button
             className="group flex items-center gap-3 text-[11px] uppercase tracking-[0.3em] text-gray-400 hover:text-black transition-all"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/biblioteca")}
           >
             <span className="text-xl group-hover:-translate-x-2 transition-transform">
               ←
@@ -76,7 +79,7 @@ export default function DocumentoPage() {
           </div>
         </div>
 
-        {/* Título de la Obra con Diseño Minimalista */}
+        {/* Título */}
         <div className="text-center mb-16 space-y-4">
           <p className="text-xs uppercase tracking-[0.5em] text-amber-600/60">
             Legacy Collection
@@ -95,7 +98,7 @@ export default function DocumentoPage() {
           </div>
         </div>
 
-        {/* Contenedor del Lector con Efecto de Profundidad */}
+        {/* Visor */}
         <div className="relative group">
           {loading ? (
             <div className="flex flex-col items-center justify-center min-h-[650px] bg-white/50 backdrop-blur-sm rounded-[40px] border border-amber-100 shadow-inner">
@@ -113,12 +116,13 @@ export default function DocumentoPage() {
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 p-2 md:p-8 bg-white/40 rounded-[40px] shadow-2xl shadow-amber-900/5 border border-white/60">
-              <FlipbookViewer fileUrl={pdfProxyUrl} />
+              {/* ✅ fileUrl directo */}
+              <FlipbookViewer fileUrl={pdfUrl} />
             </div>
           )}
         </div>
 
-        {/* Pie de Página de la Obra */}
+        {/* Pie */}
         <div className="mt-20 text-center pb-12 border-t border-amber-50 mx-auto max-w-xs pt-8">
           <p className="text-[10px] uppercase tracking-[0.5em] text-gray-300 leading-loose">
             Jose Enrique Perez Leon
