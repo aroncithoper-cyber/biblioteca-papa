@@ -10,6 +10,9 @@ export default function Header() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
+  // DEFINE AQUÍ TU CORREO DE ADMINISTRADOR
+  const ADMIN_EMAIL = "tu-correo@ejemplo.com"; 
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -36,7 +39,7 @@ export default function Header() {
               alt="Logo" 
             />
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col text-left">
             <span className="text-xs font-black tracking-[0.3em] uppercase text-gray-900 leading-none mb-1">
               Consejero
             </span>
@@ -56,13 +59,24 @@ export default function Header() {
               >
                 Biblioteca
               </Link>
-              
+
+              {/* ENLACE A GALERÍA: Visible para todos los usuarios logueados */}
               <Link
-                href="/admin"
-                className="hidden md:block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-700 transition-colors"
+                href="/galeria"
+                className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-black transition-colors"
               >
-                Panel Editorial
+                Galería
               </Link>
+              
+              {/* FILTRO DE SEGURIDAD: Solo visible para tu correo */}
+              {user.email === ADMIN_EMAIL && (
+                <Link
+                  href="/admin"
+                  className="text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 hover:text-amber-900 transition-colors bg-amber-50 px-3 py-1 rounded-full border border-amber-100"
+                >
+                  Panel Editorial
+                </Link>
+              )}
               
               <button
                 onClick={logout}
@@ -72,7 +86,6 @@ export default function Header() {
               </button>
             </>
           ) : (
-            /* Botón de acceso discreto para el público */
             <Link 
               href="/biblioteca" 
               className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400 hover:text-black transition-all"
