@@ -143,8 +143,8 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             /* @ts-ignore */
             <HTMLFlipBook
               ref={bookRef}
-              width={400}
-              height={550}
+              width={360}
+              height={520}
               size="fixed"
               minWidth={400} maxWidth={400}
               minHeight={550} maxHeight={550}

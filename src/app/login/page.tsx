@@ -12,8 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // COLOQUEN AQUÍ EL CORREO DEL ADMINISTRADOR
-  const ADMIN_EMAIL = "tu-correo@ejemplo.com"; 
+  const ADMIN_EMAIL = "tu-correo@ejemplo.com";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,13 +23,12 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // VALIDACIÓN DE ROL SIMPLE
       if (user.email === ADMIN_EMAIL) {
-        router.push("/admin"); // Si es el admin, va directo al panel
+        router.push("/admin");
       } else {
-        router.push("/"); // Si es un lector, va al inicio
+        router.push("/");
       }
-    } catch (err: any) {
+    } catch {
       setError("Credenciales no válidas para acceso administrativo");
     } finally {
       setLoading(false);
@@ -38,20 +36,31 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#F8F9FA] font-serif">
-      <form onSubmit={handleLogin} className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-widest">Acceso Editorial</h1>
-          <p className="text-gray-400 text-xs mt-2 italic">Administración del Consejero del Obrero</p>
+    <main className="min-h-screen flex items-center justify-center bg-[#F8F9FA] font-serif px-4">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-100
+                   p-6 sm:p-10"
+      >
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 uppercase tracking-widest">
+            Acceso Editorial
+          </h1>
+          <p className="text-gray-400 text-[11px] sm:text-xs mt-2 italic">
+            Administración del Consejero del Obrero
+          </p>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Correo Electrónico</label>
+            <label className="block text-[9px] sm:text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">
+              Correo Electrónico
+            </label>
             <input
               type="email"
               placeholder="admin@ejemplo.com"
-              className="w-full border-b-2 border-gray-100 focus:border-black outline-none px-1 py-3 transition-all text-sm"
+              className="w-full border-b-2 border-gray-100 focus:border-black outline-none
+                         px-1 py-3 transition-all text-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -59,11 +68,14 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Contraseña</label>
+            <label className="block text-[9px] sm:text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">
+              Contraseña
+            </label>
             <input
               type="password"
               placeholder="••••••••"
-              className="w-full border-b-2 border-gray-100 focus:border-black outline-none px-1 py-3 transition-all text-sm"
+              className="w-full border-b-2 border-gray-100 focus:border-black outline-none
+                         px-1 py-3 transition-all text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -71,22 +83,29 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-[11px] mt-4 bg-red-50 p-2 rounded text-center">{error}</p>}
+        {error && (
+          <p className="text-red-500 text-[11px] mt-4 bg-red-50 p-2 rounded text-center">
+            {error}
+          </p>
+        )}
 
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={loading}
-          className="w-full bg-black text-white py-4 rounded-lg mt-8 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-all disabled:bg-gray-400"
+          className="w-full bg-black text-white py-4 rounded-lg mt-8
+                     text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em]
+                     hover:bg-gray-800 transition-all disabled:bg-gray-400"
         >
           {loading ? "Verificando..." : "Entrar al Panel"}
         </button>
 
-        <button 
+        <button
           type="button"
           onClick={() => router.push("/")}
-          className="w-full text-gray-400 text-[10px] mt-4 hover:text-black transition-colors uppercase tracking-widest"
+          className="w-full text-gray-400 text-[9px] sm:text-[10px] mt-4
+                     hover:text-black transition-colors uppercase tracking-widest"
         >
-          Regresar a la Biblioteca
+          Regresar al Inicio
         </button>
       </form>
     </main>
