@@ -30,19 +30,20 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   const [targetPage, setTargetPage] = useState("");
 
   const [viewMode, setViewMode] = useState<ViewMode>("flip");
-  const [bookDimensions, setBookDimensions] = useState({ width: 380, height: 550 });
+  const [bookDimensions, setBookDimensions] = useState({ width: 380, height: 560 });
 
   const isZoomedFlip = zoom > 1.01;
-  const renderScale = 2.0; 
+  const renderScale = 2.0;
 
   // Auto-detectar móvil para poner modo Scroll (Ebook) por defecto
   useEffect(() => {
-    const checkMobile = () => {
-      if (window.innerWidth < 768) setViewMode("scroll");
+    const apply = () => {
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+      if (isMobile) setViewMode("scroll");
     };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
   }, []);
 
   // Bloqueo de seguridad (Ctrl+P, Ctrl+S)
@@ -52,12 +53,15 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       if ((e.ctrlKey || e.metaKey) && (k === "p" || k === "s")) e.preventDefault();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    return () => window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
+    return () =>
+      window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
   }, []);
 
-  // Renderizar PDF
+  // Renderizar PDF (una sola vez por fileUrl)
   useEffect(() => {
     let cancelled = false;
+    const ac = new AbortController();
+    let pdfDoc: any = null;
 
     async function renderPdf() {
       try {
@@ -67,32 +71,36 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         setTotalPages(0);
         setCurrentRender(0);
 
-        const res = await fetch(fileUrl, { cache: "no-store" });
+        const res = await fetch(fileUrl, { cache: "no-store", signal: ac.signal });
         if (!res.ok) throw new Error("No se pudo descargar el PDF");
 
         const data = await res.arrayBuffer();
         // @ts-ignore
-        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+
         if (cancelled) return;
 
-        setTotalPages(pdf.numPages);
+        setTotalPages(pdfDoc.numPages);
 
         // Calcular tamaño ideal del libro basado en la primera página
-        const firstPage = await pdf.getPage(1);
+        const firstPage = await pdfDoc.getPage(1);
         const vp1 = firstPage.getViewport({ scale: 1 });
         const ratio = vp1.width / vp1.height;
         const baseHeight = 560;
-        const width = clamp(Math.floor(baseHeight * ratio), 320, 550);
+        const width = clamp(Math.floor(baseHeight * ratio), 320, 560);
         setBookDimensions({ width, height: baseHeight });
 
         const userMark = auth.currentUser?.email || "Copia Protegida";
-        const imgs: string[] = new Array(pdf.numPages);
 
-        for (let i = 1; i <= pdf.numPages; i++) {
+        // Array fijo para mantener orden y evitar rearmar todo
+        const imgs: string[] = new Array(pdfDoc.numPages);
+
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
           if (cancelled) return;
+
           setCurrentRender(i);
 
-          const page = await pdf.getPage(i);
+          const page = await pdfDoc.getPage(i);
           const viewport = page.getViewport({ scale: renderScale });
 
           const canvas = document.createElement("canvas");
@@ -102,11 +110,10 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);
 
-          await page.render({
-            canvasContext: ctx,
-            viewport,
-            canvas,
-          } as any).promise;
+          // pdfjs v5 pide también canvas en los tipos
+          await page
+            .render({ canvasContext: ctx, viewport, canvas } as any)
+            .promise;
 
           // Marca de agua sutil
           ctx.save();
@@ -122,26 +129,34 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
           imgs[i - 1] = canvas.toDataURL("image/jpeg", 0.85);
 
-          // Carga progresiva para feedback visual rápido
-          if (i === 1 || i % 4 === 0 || i === pdf.numPages) {
-            setPages(imgs.filter(Boolean));
+          // Progresivo sin filter(Boolean) (evita rearmar masivo cada vez)
+          if (i === 1 || i % 4 === 0 || i === pdfDoc.numPages) {
+            const partial = imgs.slice(0, i).filter(Boolean);
+            setPages(partial);
           }
         }
 
         if (cancelled) return;
         setPages(imgs.filter(Boolean));
         setLoading(false);
-      } catch (e) {
-        if (!cancelled) {
-          setErrMsg("No se pudo cargar el documento.");
-          setLoading(false);
-        }
+      } catch (e: any) {
+        if (cancelled) return;
+        if (e?.name === "AbortError") return;
+        setErrMsg("No se pudo cargar el documento.");
+        setLoading(false);
       }
     }
 
     renderPdf();
-    return () => { cancelled = true; };
-  }, [fileUrl]); // Quitamos viewMode de deps para no recargar al cambiar vista
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+      try {
+        pdfDoc?.destroy?.();
+      } catch {}
+    };
+  }, [fileUrl]);
 
   const progress = totalPages ? Math.round((currentRender / totalPages) * 100) : 0;
 
@@ -153,6 +168,12 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     };
   }, []);
 
+  const headerBg = useMemo(() => {
+    if (theme === "dark") return "bg-black/60";
+    if (theme === "sepia") return "bg-[#f4ecd8]/80";
+    return "bg-white/80";
+  }, [theme]);
+
   const goToPage = (e: React.FormEvent) => {
     e.preventDefault();
     const p = parseInt(targetPage, 10);
@@ -161,14 +182,14 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     if (viewMode === "flip") {
       bookRef.current?.pageFlip()?.turnToPage(p - 1);
     } else {
-      const el = document.getElementById(`page-${p - 1}`);
-      // Scroll suave y centrado
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById(`page-${p - 1}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
     setTargetPage("");
   };
 
-  // Cast para librería externa
   const FlipBookComponent: any = HTMLFlipBook;
 
   return (
@@ -180,8 +201,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     >
       {/* --- BARRA DE HERRAMIENTAS --- */}
       <div className="sticky top-4 z-50 flex flex-wrap items-center justify-center gap-3 px-4 py-2 bg-white/95 backdrop-blur-xl border border-amber-100 rounded-full shadow-xl mx-4 max-w-full">
-        
-        {/* Botón Cambio de Modo */}
         <button
           onClick={() => setViewMode(viewMode === "flip" ? "scroll" : "flip")}
           className="flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[10px] font-bold uppercase hover:bg-amber-600 transition-colors shadow-md"
@@ -191,7 +210,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
         <div className="w-px h-4 bg-gray-300 hidden sm:block" />
 
-        {/* Selector de Tema */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-full">
           {(["light", "sepia", "dark"] as Theme[]).map((t) => (
             <button
@@ -199,12 +217,17 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               onClick={() => setTheme(t)}
               className={`w-6 h-6 rounded-full border transition-transform ${
                 theme === t ? "ring-2 ring-amber-500 scale-110" : "opacity-50"
-              } ${t === "light" ? "bg-white" : t === "sepia" ? "bg-[#f4ecd8]" : "bg-[#2c2c2c]"}`}
+              } ${
+                t === "light"
+                  ? "bg-white"
+                  : t === "sepia"
+                  ? "bg-[#f4ecd8]"
+                  : "bg-[#2c2c2c]"
+              }`}
             />
           ))}
         </div>
 
-        {/* Controles de Zoom (Solo para Modo Libro 3D) */}
         {viewMode === "flip" && (
           <>
             <div className="w-px h-4 bg-gray-300 hidden sm:block" />
@@ -215,7 +238,9 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               >
                 –
               </button>
-              <span className="text-[10px] w-10 text-center font-black">{Math.round(zoom * 100)}%</span>
+              <span className="text-[10px] w-10 text-center font-black">
+                {Math.round(zoom * 100)}%
+              </span>
               <button
                 className="px-2 font-bold hover:text-amber-600"
                 onClick={() => setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.7, 1.6))}
@@ -226,7 +251,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           </>
         )}
 
-        {/* Ir a página */}
         <form onSubmit={goToPage} className="flex items-center gap-1 border-l pl-3 border-gray-200">
           <input
             type="number"
@@ -235,11 +259,12 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             value={targetPage}
             onChange={(e) => setTargetPage(e.target.value)}
           />
-          <button type="submit" className="text-[10px] font-bold uppercase text-amber-700">Ir</button>
+          <button type="submit" className="text-[10px] font-bold uppercase text-amber-700">
+            Ir
+          </button>
         </form>
       </div>
 
-      {/* --- CARGANDO --- */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-20 animate-pulse">
           <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
@@ -249,7 +274,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         </div>
       )}
 
-      {/* --- ERROR --- */}
       {errMsg && (
         <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">
           {errMsg}
@@ -259,7 +283,9 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       {/* --- MODO LIBRO 3D (FLIP) --- */}
       {viewMode === "flip" && !loading && pages.length > 0 && (
         <div
-          className={`w-full max-w-6xl border rounded-[2.5rem] p-4 sm:p-10 shadow-inner transition-colors ${themeStyles[theme]} ${theme==='dark' ? 'border-gray-800' : 'border-gray-100'}`}
+          className={`w-full max-w-6xl border rounded-[2.5rem] p-4 sm:p-10 shadow-inner transition-colors ${themeStyles[theme]} ${
+            theme === "dark" ? "border-gray-800" : "border-gray-100"
+          }`}
         >
           <div
             className="mx-auto"
@@ -318,41 +344,52 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
       {/* --- MODO EBOOK (SCROLL) --- */}
       {viewMode === "scroll" && !loading && pages.length > 0 && (
-        <div className={`w-full max-w-3xl px-0 sm:px-0 flex flex-col gap-0 pb-32`}>
-          <div className="text-center py-4 text-[10px] text-gray-500 uppercase tracking-widest sticky top-0 z-10 bg-inherit/90 backdrop-blur-sm">
-             Lectura Continua
+        <div className="w-full max-w-3xl px-0 flex flex-col gap-0 pb-32">
+          <div className={`text-center py-3 text-[10px] text-gray-500 uppercase tracking-widest sticky top-0 z-10 ${headerBg} backdrop-blur-sm`}>
+            Lectura Continua
           </div>
 
-          {pages.map((src, idx) => (
-            <div 
-              key={idx} 
-              id={`page-${idx}`} 
-              className={`w-full relative shadow-sm ${themeStyles[theme]} mb-2`}
-            >
-              {/* Imagen limpia, sin handlers raros. Permite zoom nativo del navegador. */}
-              <img
-                src={src}
-                alt={`Página ${idx + 1}`}
-                className="w-full h-auto block"
-                loading="lazy"
-                style={{
-                    filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : theme === 'sepia' ? 'sepia(0.3)' : 'none'
-                }}
-              />
-              
-              {/* Número de página discreto */}
-              <div className="absolute bottom-2 right-2 bg-black/50 text-white px-2 py-0.5 rounded text-[9px] font-bold opacity-30 hover:opacity-100 transition-opacity">
-                {idx + 1}
+          <div
+            className="w-full"
+            style={{
+              overscrollBehavior: "contain",
+              WebkitOverflowScrolling: "touch",
+              touchAction: "pan-y pinch-zoom",
+            }}
+          >
+            {pages.map((src, idx) => (
+              <div
+                key={idx}
+                id={`page-${idx}`}
+                className={`w-full relative shadow-sm ${themeStyles[theme]} mb-2`}
+              >
+                <img
+                  src={src}
+                  alt={`Página ${idx + 1}`}
+                  className="w-full h-auto block"
+                  loading="lazy"
+                  style={{
+                    filter:
+                      theme === "dark"
+                        ? "invert(0.9) hue-rotate(180deg)"
+                        : theme === "sepia"
+                        ? "sepia(0.3)"
+                        : "none",
+                  }}
+                />
+
+                <div className="absolute bottom-2 right-2 bg-black/50 text-white px-2 py-0.5 rounded text-[9px] font-bold opacity-30 hover:opacity-100 transition-opacity">
+                  {idx + 1}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
       <style jsx global>{`
         .book-main { background: transparent; }
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        /* Mejora el scroll en móvil */
         html { scroll-behavior: smooth; }
       `}</style>
     </div>
