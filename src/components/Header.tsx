@@ -10,6 +10,7 @@ export default function Header() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
+  // Tus correos de administrador configurados
   const ADMIN_EMAILS = useMemo(
     () => ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"],
     []
@@ -32,14 +33,20 @@ export default function Header() {
 
   const isAdmin = !!user && ADMIN_EMAILS.includes((user.email || "").toLowerCase());
 
+  // Función para soporte por WhatsApp
+  const handleSupport = () => {
+    const message = encodeURIComponent("Hola, necesito ayuda con la plataforma Consejero del Obrero.");
+    window.open(`https://wa.me/521XXXXXXXXXX?text=${message}`, "_blank"); // Reemplaza las X con tu número
+  };
+
   return (
     <header className="bg-white/70 backdrop-blur-xl sticky top-0 z-50 border-b border-amber-100/50 transition-all duration-300">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        
         {/* LOGO CON EFECTO PRO */}
         <Link href="/" className="group flex items-center gap-4 active:scale-95 transition-transform">
           <div className="relative">
             <div className="absolute -inset-1 bg-amber-200 rounded-full blur opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
-            {/* Asegúrate de que la ruta de la imagen sea correcta (icon-192 o icon-512) */}
             <img
               src="/icon-512.png" 
               alt="Logo"
@@ -58,7 +65,17 @@ export default function Header() {
         </Link>
 
         {/* NAVEGACIÓN INTELIGENTE */}
-        <nav className="flex items-center gap-4 sm:gap-6">
+        <nav className="flex items-center gap-3 sm:gap-6">
+          
+          {/* BOTÓN DE AYUDA (Nuevo) */}
+          <button
+            onClick={handleSupport}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-green-50 text-green-600 border border-green-100 hover:bg-green-600 hover:text-white transition-all shadow-sm"
+            title="Ayuda y Soporte"
+          >
+            <span className="text-sm">?</span>
+          </button>
+
           {user ? (
             <>
               {/* LÓGICA DE ROLES */}
@@ -78,7 +95,6 @@ export default function Header() {
                 </Link>
               )}
 
-              {/* ENLACE GALERÍA */}
               <Link
                 href="/galeria"
                 className="hidden sm:block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-600 transition-colors"
@@ -86,7 +102,6 @@ export default function Header() {
                 Galería
               </Link>
 
-              {/* BOTÓN SALIR */}
               <button
                 onClick={logout}
                 className="text-[10px] font-bold tracking-[0.2em] uppercase bg-black text-white px-5 py-2.5 rounded-full hover:bg-amber-700 transition-all shadow-lg active:scale-90"
@@ -95,7 +110,6 @@ export default function Header() {
               </button>
             </>
           ) : (
-            /* BOTÓN PARA INVITADOS */
             <Link
               href="/biblioteca"
               className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-900 bg-white border border-gray-200 px-6 py-2.5 rounded-full hover:bg-black hover:text-white hover:border-black transition-all shadow-sm"
