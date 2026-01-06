@@ -4,14 +4,16 @@ import Link from "next/link";
 import { signOut, onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export default function Header() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
-  // Lista de administradores autorizados
-  const ADMIN_EMAILS = ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"];
+  const ADMIN_EMAILS = useMemo(
+    () => ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"],
+    []
+  );
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -28,23 +30,18 @@ export default function Header() {
     }
   };
 
-  // Verificamos si el usuario actual es administrador
-  const isAdmin = user && ADMIN_EMAILS.includes(user.email?.toLowerCase() || "");
+  const isAdmin = !!user && ADMIN_EMAILS.includes((user.email || "").toLowerCase());
 
   return (
     <header className="bg-white/70 backdrop-blur-xl sticky top-0 z-50 border-b border-amber-100/50">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-        {/* Identidad Visual Pro */}
-        <Link
-          href="/"
-          className="group flex items-center gap-4 transition-transform active:scale-95"
-        >
+        <Link href="/" className="group flex items-center gap-4 active:scale-95">
           <div className="relative">
             <div className="absolute -inset-1 bg-amber-200 rounded-full blur opacity-0 group-hover:opacity-40 transition-opacity" />
             <img
               src="/icon-192.png"
-              className="relative w-8 h-8 rounded-full grayscale group-hover:grayscale-0 transition-all duration-500 border border-amber-100 p-0.5 bg-white"
               alt="Logo"
+              className="relative w-8 h-8 rounded-full grayscale group-hover:grayscale-0 transition-all duration-500 border border-amber-100 p-0.5 bg-white"
             />
           </div>
 
@@ -58,7 +55,6 @@ export default function Header() {
           </div>
         </Link>
 
-        {/* Navegación Refinada */}
         <nav className="flex items-center gap-8">
           {user ? (
             <>
