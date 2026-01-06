@@ -11,10 +11,14 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Consejero",
   },
+  icons: {
+    icon: "/icon-512.png",
+    apple: "/icon-512.png",
+  },
   openGraph: {
     title: "Consejero del Obrero",
     description: "Biblioteca Digital",
-    images: [{ url: "/icon.png" }],
+    images: [{ url: "/icon-512.png" }],
   },
 };
 
@@ -33,26 +37,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <head>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="icon" href="/icon.png" />
-        <link rel="apple-touch-icon" href="/icon.png" />
-      </head>
       <body className="antialiased bg-[#fcfaf7]">
         <AuthGuard>{children}</AuthGuard>
 
-        {/* --- ACTIVADOR DE DESCARGA (SERVICE WORKER) --- */}
+        {/* Registro del Service Worker */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('App lista para instalar');
-                  }, function(err) {
-                    console.log('Error en activador:', err);
-                  });
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js');
                 });
               }
             `,
