@@ -16,26 +16,39 @@ export default function DocumentoPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let alive = true;
+
     (async () => {
-      const snap = await getDoc(doc(db, "documents", id));
-      if (!snap.exists()) {
+      try {
+        const snap = await getDoc(doc(db, "documents", id));
+        if (!snap.exists()) {
+          router.push("/");
+          return;
+        }
+
+        const data = snap.data() as any;
+        if (!alive) return;
+
+        setTitle(data.title || "Volumen de Estudio");
+
+        const storagePath = data.storagePath;
+        if (!storagePath) {
+          console.error("Falta storagePath en Firestore");
+          router.push("/");
+          return;
+        }
+
+        setPdfProxyUrl(`/api/pdf?path=${encodeURIComponent(storagePath)}`);
+        setLoading(false);
+      } catch (err) {
+        console.error(err);
         router.push("/");
-        return;
       }
+    })();
 
-      const data = snap.data() as any;
-      setTitle(data.title || "Volumen de Estudio");
-
-      const storagePath = data.storagePath;
-      if (!storagePath) {
-        console.error("Falta storagePath en Firestore");
-        router.push("/");
-        return;
-      }
-
-      setPdfProxyUrl(`/api/pdf?path=${encodeURIComponent(storagePath)}`);
-      setLoading(false);
-    })().catch(console.error);
+    return () => {
+      alive = false;
+    };
   }, [id, router]);
 
   return (
@@ -49,10 +62,12 @@ export default function DocumentoPage() {
             className="group flex items-center gap-3 text-[11px] uppercase tracking-[0.3em] text-gray-400 hover:text-black transition-all"
             onClick={() => router.push("/")}
           >
-            <span className="text-xl group-hover:-translate-x-2 transition-transform">←</span> 
+            <span className="text-xl group-hover:-translate-x-2 transition-transform">
+              ←
+            </span>
             Volver a la Biblioteca
           </button>
-          
+
           <div className="flex items-center gap-4">
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
             <span className="text-[11px] uppercase tracking-[0.3em] text-amber-700 font-bold">
@@ -63,13 +78,19 @@ export default function DocumentoPage() {
 
         {/* Título de la Obra con Diseño Minimalista */}
         <div className="text-center mb-16 space-y-4">
-          <p className="text-xs uppercase tracking-[0.5em] text-amber-600/60">Legacy Collection</p>
+          <p className="text-xs uppercase tracking-[0.5em] text-amber-600/60">
+            Legacy Collection
+          </p>
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 tracking-tighter max-w-4xl mx-auto leading-tight">
             {loading ? "Abriendo los archivos..." : title}
           </h1>
           <div className="flex justify-center items-center gap-4">
             <div className="h-px w-16 bg-gray-200"></div>
-            <img src="/icon.png" className="w-6 h-6 grayscale opacity-30" alt="decor" />
+            <img
+              src="/icon-512.png"
+              className="w-6 h-6 grayscale opacity-30"
+              alt="decor"
+            />
             <div className="h-px w-16 bg-gray-200"></div>
           </div>
         </div>
@@ -80,9 +101,15 @@ export default function DocumentoPage() {
             <div className="flex flex-col items-center justify-center min-h-[650px] bg-white/50 backdrop-blur-sm rounded-[40px] border border-amber-100 shadow-inner">
               <div className="relative">
                 <div className="w-16 h-16 border-2 border-amber-100 border-t-amber-600 rounded-full animate-spin"></div>
-                <img src="/icon.png" className="w-6 h-6 absolute inset-0 m-auto opacity-20" alt="" />
+                <img
+                  src="/icon-512.png"
+                  className="w-6 h-6 absolute inset-0 m-auto opacity-20"
+                  alt=""
+                />
               </div>
-              <p className="mt-6 text-sm italic text-amber-800/40 tracking-widest uppercase">Preparando ejemplar único</p>
+              <p className="mt-6 text-sm italic text-amber-800/40 tracking-widest uppercase">
+                Preparando ejemplar único
+              </p>
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 p-2 md:p-8 bg-white/40 rounded-[40px] shadow-2xl shadow-amber-900/5 border border-white/60">
@@ -94,8 +121,11 @@ export default function DocumentoPage() {
         {/* Pie de Página de la Obra */}
         <div className="mt-20 text-center pb-12 border-t border-amber-50 mx-auto max-w-xs pt-8">
           <p className="text-[10px] uppercase tracking-[0.5em] text-gray-300 leading-loose">
-            Jose Enrique Perez Leon<br/>
-            <span className="text-amber-600/40 font-bold italic text-xs">Consejero del Obrero</span>
+            Jose Enrique Perez Leon
+            <br />
+            <span className="text-amber-600/40 font-bold italic text-xs">
+              Consejero del Obrero
+            </span>
           </p>
         </div>
       </section>
