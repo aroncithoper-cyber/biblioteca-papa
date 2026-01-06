@@ -27,7 +27,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false,
+  userScalable: false, // Bloqueamos el zoom del navegador para que la App se sienta nativa
 };
 
 export default function RootLayout({
@@ -40,13 +40,17 @@ export default function RootLayout({
       <body className="antialiased bg-[#fcfaf7]">
         <AuthGuard>{children}</AuthGuard>
 
-        {/* Registro del Service Worker */}
+        {/* Registro del Service Worker optimizado */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js');
+                  navigator.serviceWorker.register('/sw.js').then(reg => {
+                    console.log('✅ Modo Offline Activado');
+                  }).catch(err => {
+                    console.log('❌ Error en SW:', err);
+                  });
                 });
               }
             `,
