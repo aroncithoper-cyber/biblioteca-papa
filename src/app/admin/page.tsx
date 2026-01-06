@@ -12,6 +12,7 @@ import {
   doc,
   updateDoc,
   arrayUnion,
+  arrayRemove, // <--- IMPORTANTE: Agregado para poder quitar permisos
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage, auth } from "@/lib/firebase";
@@ -91,9 +92,8 @@ export default function AdminPage() {
     }
   };
 
-  // Función MEJORADA para autorizar (sirve para lista de solicitudes y manual)
+  // Función para autorizar
   const authorizeUser = async (docId: string, emailOverride?: string, requestId?: string) => {
-    // Si viene emailOverride (de la lista) lo usamos, si no, usamos el input manual
     const email = emailOverride || userEmailToAuthorize[docId]?.trim().toLowerCase();
     
     if (!email) return alert("Error: Correo no válido");
@@ -110,13 +110,29 @@ export default function AdminPage() {
 
       alert(`✅ Acceso concedido a: ${email}`);
       
-      // Limpiamos el input manual si se usó
       if(!emailOverride) setUserEmailToAuthorize({ ...userEmailToAuthorize, [docId]: "" });
       
       loadData();
     } catch (e: any) { 
         alert("❌ Error al autorizar: " + e.message);
     } finally { setLoading(false); }
+  };
+
+  // --- NUEVA FUNCIÓN AGREGADA: REVOCAR ACCESO ---
+  const revokeAccess = async (docId: string, email: string) => {
+    if (!confirm(`¿Estás seguro de quitar el acceso a: ${email}?`)) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "documents", docId), {
+        authorizedEmails: arrayRemove(email)
+      });
+      alert("🚫 Acceso eliminado correctamente");
+      loadData();
+    } catch (e: any) {
+      alert("❌ Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Rechazar solicitud
@@ -318,7 +334,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* --- SECCIÓN 03: SOLICITUDES DE ACCESO (LO QUE FALTABA) --- */}
+        {/* --- SECCIÓN 03: SOLICITUDES DE ACCESO --- */}
         {requests.length > 0 && (
           <div className="mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
              <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 mb-8 flex items-center gap-4">
@@ -398,21 +414,46 @@ export default function AdminPage() {
                   </div>
                 </div>
                 
-                {/* Input manual para autorizar por correo si no hay solicitud */}
+                {/* --- SECCIÓN NUEVA: LISTA DE USUARIOS AUTORIZADOS Y ELIMINAR --- */}
                 {!d.isPublic && (
-                   <div className="mt-6 pt-6 border-t border-gray-50 flex gap-2">
-                      <input 
-                        placeholder="Autorizar correo manual..."
-                        className="flex-1 bg-gray-50 px-4 py-2 rounded-lg text-xs outline-none"
-                        value={userEmailToAuthorize[d.id] || ""}
-                        onChange={(e) => setUserEmailToAuthorize({ ...userEmailToAuthorize, [d.id]: e.target.value })}
-                      />
-                      <button 
-                        onClick={() => authorizeUser(d.id)}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-amber-600"
-                      >
-                        Autorizar
-                      </button>
+                   <div className="mt-6 pt-6 border-t border-gray-50">
+                      <p className="text-[9px] font-black uppercase text-gray-400 mb-3 tracking-widest">Usuarios con acceso:</p>
+                      
+                      {/* Lista de correos autorizados con botón de borrar */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {d.authorizedEmails && d.authorizedEmails.length > 0 ? (
+                          d.authorizedEmails.map((email: string) => (
+                            <div key={email} className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
+                               <span className="text-xs text-gray-600">{email}</span>
+                               <button 
+                                 onClick={() => revokeAccess(d.id, email)}
+                                 className="w-4 h-4 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-[9px] font-bold hover:bg-red-500 hover:text-white transition-colors"
+                                 title="Quitar acceso"
+                               >
+                                 ✕
+                               </button>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-300 italic">No hay usuarios asignados aún.</span>
+                        )}
+                      </div>
+
+                      {/* Input para agregar manual */}
+                      <div className="flex gap-2">
+                        <input 
+                          placeholder="Agregar correo manualmente..."
+                          className="flex-1 bg-gray-50 px-4 py-2 rounded-lg text-xs outline-none"
+                          value={userEmailToAuthorize[d.id] || ""}
+                          onChange={(e) => setUserEmailToAuthorize({ ...userEmailToAuthorize, [d.id]: e.target.value })}
+                        />
+                        <button 
+                          onClick={() => authorizeUser(d.id)}
+                          className="px-4 py-2 bg-gray-900 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-amber-600"
+                        >
+                          Autorizar
+                        </button>
+                      </div>
                    </div>
                 )}
               </div>
