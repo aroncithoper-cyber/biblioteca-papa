@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { useRouter } from "next/navigation"; // Importante para la redirección
 import Header from "@/components/Header";
 import Link from "next/link";
 
@@ -28,10 +29,24 @@ export default function BibliotecaPage() {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const router = useRouter();
+
+  // LISTA DE ADMINISTRADORES PARA REDIRECCIÓN AUTOMÁTICA
+  const ADMIN_EMAILS = ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"];
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      setUserEmail(user?.email?.toLowerCase() || null);
+      if (user) {
+        const email = user.email?.toLowerCase() || "";
+        setUserEmail(email);
+
+        // REDIRECCIÓN INTELIGENTE: Si eres admin, vas directo al Panel
+        if (ADMIN_EMAILS.includes(email)) {
+          router.push("/admin");
+        }
+      } else {
+        setUserEmail(null);
+      }
     });
 
     (async () => {
@@ -46,7 +61,7 @@ export default function BibliotecaPage() {
     })().catch(() => setLoading(false));
 
     return () => unsub();
-  }, []);
+  }, [router]);
 
   const term = searchTerm.toLowerCase();
 
@@ -66,7 +81,7 @@ export default function BibliotecaPage() {
         <div className="flex justify-center items-center gap-6 mb-8 sm:mb-10">
           <div className="h-px w-12 sm:w-16 bg-gradient-to-r from-transparent to-amber-200"></div>
           <img
-            src="/icon-512.png"
+            src="/icon.png"
             className="w-12 h-12 sm:w-14 sm:h-14 grayscale opacity-40"
             alt="Logo"
           />
@@ -166,7 +181,7 @@ export default function BibliotecaPage() {
       {/* FOOTER */}
       <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-24 sm:py-32 text-center">
         <img
-          src="/icon-512.png"
+          src="/icon.png"
           className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-8 sm:mb-10 grayscale opacity-20"
           alt=""
         />
@@ -181,7 +196,7 @@ export default function BibliotecaPage() {
   );
 }
 
-/* BOOK CARD (solo responsive, lógica intacta) */
+/* BOOK CARD (con lógica de WhatsApp intacta) */
 function BookCard({
   doc,
   index,
@@ -256,7 +271,7 @@ function BookCard({
               {doc.title}
             </h4>
             <img
-              src="/icon-512.png"
+              src="/icon.png"
               className="w-6 h-6 mx-auto opacity-30"
               alt=""
             />
@@ -290,6 +305,10 @@ function BookCard({
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-[2.5rem] p-8 sm:p-10 max-w-sm w-full shadow-2xl">
             <form onSubmit={handleRequest} className="space-y-5">
+              <h3 className="text-center font-bold text-gray-900">Solicitar Volumen</h3>
+              <p className="text-[10px] text-center text-gray-400 uppercase tracking-widest">
+                Déjanos tu WhatsApp para coordinar el acceso
+              </p>
               <input
                 required
                 type="tel"
@@ -304,6 +323,13 @@ function BookCard({
                 className="w-full py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-[0.4em]"
               >
                 {sending ? "Enviando..." : "Enviar Solicitud"}
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setShowModal(false)}
+                className="w-full text-[9px] uppercase tracking-widest text-gray-300 font-bold"
+              >
+                Cancelar
               </button>
             </form>
           </div>
