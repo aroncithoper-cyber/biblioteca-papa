@@ -16,7 +16,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(0);
-  const [currentRender, setCurrentRender] = useState(0);
   const [errMsg, setErrMsg] = useState("");
 
   const [zoom, setZoom] = useState(1);
@@ -26,13 +25,12 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   // Nuevo: Modo de vista (Libro 3D vs Ebook Vertical)
   const [viewMode, setViewMode] = useState<"flip" | "scroll">("flip");
 
-  // Nuevo: Dimensiones dinámicas para evitar cortes
+  // Nuevo: Dimensiones dinámicas
   const [bookDimensions, setBookDimensions] = useState({ width: 380, height: 550 });
 
-  // Aumentamos calidad de renderizado (Mejor que lo que sugirió ChatGPT)
   const renderScale = 2.5; 
 
-  // Detectar móvil para sugerir modo scroll
+  // Detectar móvil
   useEffect(() => {
     if (window.innerWidth < 768) setViewMode("scroll");
   }, []);
@@ -56,9 +54,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         setLoading(true);
         setPages([]);
         setTotalPages(0);
-        setCurrentRender(0);
 
-        // Fetch normal (asumiendo que las reglas de CORS están bien configuradas)
         const res = await fetch(fileUrl);
         if (!res.ok) throw new Error("No se pudo descargar el PDF");
 
@@ -72,22 +68,18 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         const imgs: string[] = new Array(pdf.numPages);
 
         // --- CORRECCIÓN DE PALABRAS CORTADAS ---
-        // Obtenemos la primera página para calcular el tamaño real del libro
         const firstPage = await pdf.getPage(1);
         const viewport = firstPage.getViewport({ scale: 1 });
         const ratio = viewport.width / viewport.height;
         
-        // Ajustamos el contenedor del libro al ratio del PDF
-        const baseHeight = 550; // Altura fija cómoda
+        const baseHeight = 550;
         const calculatedWidth = Math.floor(baseHeight * ratio);
         setBookDimensions({ width: calculatedWidth, height: baseHeight });
 
         for (let i = 1; i <= pdf.numPages; i++) {
           if (cancelled) return;
-          setCurrentRender(i);
 
           const page = await pdf.getPage(i);
-          // Renderizamos con alta calidad
           const viewportHigh = page.getViewport({ scale: renderScale });
           
           const canvas = document.createElement("canvas");
@@ -97,10 +89,8 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           canvas.width = Math.floor(viewportHigh.width);
           canvas.height = Math.floor(viewportHigh.height);
 
-          // Renderizamos
           await page.render({ canvasContext: ctx, viewport: viewportHigh, canvas }).promise;
 
-          // Marca de agua sutil
           ctx.save();
           ctx.font = `bold ${Math.floor(canvas.width / 20)}px serif`;
           ctx.fillStyle = "rgba(128, 128, 128, 0.1)"; 
@@ -113,7 +103,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
           imgs[i - 1] = canvas.toDataURL("image/jpeg", 0.85);
 
-          // Actualización progresiva para modo Scroll
           if (viewMode === 'scroll' && i % 3 === 0) {
              setPages([...imgs.filter(Boolean)]);
           }
@@ -157,15 +146,17 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     []
   );
 
+  // Cast para evitar errores de tipo en la librería externa
+  const FlipBookComponent: any = HTMLFlipBook;
+
   return (
     <div
       className={`w-full flex flex-col items-center gap-4 py-4 select-none transition-colors duration-500 min-h-screen ${theme === 'dark' ? 'bg-[#1a1a1a]' : 'bg-gray-50'}`}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* BARRA DE HERRAMIENTAS FLOTANTE */}
+      {/* BARRA DE HERRAMIENTAS */}
       <div className="sticky top-4 z-50 flex flex-wrap items-center justify-center gap-3 px-4 py-2 bg-white/90 backdrop-blur-xl border border-amber-100 rounded-full shadow-xl mx-4 max-w-full">
         
-        {/* SWITCHER DE MODO (Clave para "Ebook") */}
         <button 
             onClick={() => setViewMode(viewMode === 'flip' ? 'scroll' : 'flip')}
             className="flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[10px] font-bold uppercase hover:bg-amber-600 transition-colors shadow-md"
@@ -175,19 +166,16 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
         <div className="w-px h-4 bg-gray-300 hidden sm:block" />
 
-        {/* Temas */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-full">
           {['light', 'sepia', 'dark'].map((t) => (
             <button
               key={t}
               onClick={() => setTheme(t as any)}
               className={`w-6 h-6 rounded-full border transition-transform ${theme === t ? "ring-2 ring-amber-500 scale-110" : "opacity-50"} ${t==='light'?'bg-white':t==='sepia'?'bg-[#f4ecd8]':'bg-[#2c2c2c]'}`}
-              title={`Tema ${t}`}
             />
           ))}
         </div>
 
-        {/* Zoom (Solo visible en modo Flip, en Ebook se usa el del celular) */}
         {viewMode === 'flip' && (
             <>
                 <div className="w-px h-4 bg-gray-300 hidden sm:block" />
@@ -198,7 +186,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             </>
         )}
 
-        {/* Ir a página */}
         <form onSubmit={goToPage} className="flex items-center gap-1 border-l pl-3 border-gray-200">
           <input
             type="number"
@@ -210,7 +197,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         </form>
       </div>
 
-      {/* ERROR / CARGA */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-20 animate-pulse">
            <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
@@ -220,16 +206,15 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       
       {errMsg && <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">{errMsg}</div>}
 
-
-      {/* --- MODO LIBRO 3D (PC / Estético) --- */}
+      {/* --- MODO LIBRO 3D --- */}
       {viewMode === 'flip' && !loading && pages.length > 0 && (
          <div className={`relative flex items-center justify-center p-4 sm:p-10 transition-all duration-500 ${themeStyles[theme]}`}>
             <div style={{ transform: `scale(${zoom})`, transformOrigin: "top center", transition: "transform 0.3s" }}>
-                <HTMLFlipBook
+                <FlipBookComponent
                   ref={bookRef}
-                  width={bookDimensions.width} // ANCHO CALCULADO AUTOMÁTICAMENTE
-                  height={bookDimensions.height} // ALTO FIJO
-                  size="fixed" // Fixed evita saltos raros
+                  width={bookDimensions.width}
+                  height={bookDimensions.height}
+                  size="fixed"
                   minWidth={300} maxWidth={600}
                   minHeight={400} maxHeight={800}
                   drawShadow={true}
@@ -243,23 +228,28 @@ export default function FlipbookViewer({ fileUrl }: Props) {
                   useMouseEvents={true}
                   showPageCorners={true}
                   disableFlipByClick={false}
+                  
+                  /* --- PROPIEDADES OBLIGATORIAS AGREGADAS PARA CORREGIR EL ERROR --- */
+                  style={{ margin: "0 auto" }}
+                  flippingTime={1000}
+                  usePortrait={true}
+                  maxShadowOpacity={0.5}
+                  swipeDistance={30}
                 >
                   {pages.map((src, idx) => (
                     <div key={idx} className="bg-white border-l border-gray-50 overflow-hidden relative">
-                      {/* object-contain con padding evita cortes de palabras en los bordes */}
                       <div className="w-full h-full p-2 flex items-center justify-center">
                           <img src={src} className="max-w-full max-h-full object-contain shadow-sm" draggable={false} />
                       </div>
                       <div className="absolute bottom-2 w-full text-center text-[8px] text-gray-400 font-serif">— {idx + 1} —</div>
                     </div>
                   ))}
-                </HTMLFlipBook>
+                </FlipBookComponent>
             </div>
          </div>
       )}
 
-
-      {/* --- MODO EBOOK / ESTUDIO (Celular / Lectura Vertical) --- */}
+      {/* --- MODO EBOOK --- */}
       {viewMode === 'scroll' && !loading && pages.length > 0 && (
           <div className={`w-full max-w-3xl px-2 sm:px-0 flex flex-col gap-6 pb-20 ${themeStyles[theme]}`}>
               <div className="text-center py-2 text-[10px] text-gray-400 uppercase tracking-widest">
