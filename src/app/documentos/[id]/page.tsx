@@ -2,22 +2,16 @@
 
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useEffect, useState, use } from "react"; // Añadimos 'use'
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import FlipbookViewer from "@/components/FlipbookViewer";
 
-// Definimos la interfaz para Next.js 15
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function DocumentoPage({ params }: PageProps) {
-  // Desempaquetamos el ID correctamente usando 'use'
-  const resolvedParams = use(params);
-  const id = resolvedParams.id;
-  
+export default function DocumentoPage() {
   const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+
   const [title, setTitle] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
   const [loading, setLoading] = useState(true);
@@ -30,7 +24,7 @@ export default function DocumentoPage({ params }: PageProps) {
         if (!id) return;
 
         const snap = await getDoc(doc(db, "documents", id));
-        
+
         if (!snap.exists()) {
           console.error("El documento no existe en la base de datos");
           router.push("/biblioteca");
@@ -44,7 +38,7 @@ export default function DocumentoPage({ params }: PageProps) {
 
         // Verificamos si existe fileUrl o pdfUrl (por si acaso)
         const fileUrl = data.fileUrl || data.pdfUrl;
-        
+
         if (!fileUrl) {
           console.error("Falta la URL del archivo en Firestore");
           router.push("/biblioteca");
@@ -100,7 +94,7 @@ export default function DocumentoPage({ params }: PageProps) {
           <div className="flex justify-center items-center gap-4">
             <div className="h-px w-16 bg-gray-200"></div>
             <img
-              src="/icon-192.png" 
+              src="/icon-512.png"
               className="w-6 h-6 grayscale opacity-30"
               alt="decor"
             />
@@ -115,7 +109,7 @@ export default function DocumentoPage({ params }: PageProps) {
               <div className="relative">
                 <div className="w-16 h-16 border-2 border-amber-100 border-t-amber-600 rounded-full animate-spin"></div>
                 <img
-                  src="/icon-192.png"
+                  src="/icon-512.png"
                   className="w-6 h-6 absolute inset-0 m-auto opacity-20"
                   alt=""
                 />
@@ -126,7 +120,6 @@ export default function DocumentoPage({ params }: PageProps) {
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 p-2 md:p-8 bg-white/40 rounded-[40px] shadow-2xl shadow-amber-900/5 border border-white/60">
-              {/* Pasamos la URL al visor */}
               {pdfUrl && <FlipbookViewer fileUrl={pdfUrl} />}
             </div>
           )}
