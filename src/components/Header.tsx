@@ -55,15 +55,16 @@ export default function Header() {
           </div>
         </Link>
 
-        <nav className="flex items-center gap-8">
+        <nav className="flex items-center gap-4 sm:gap-8">
           {user ? (
             <>
+              {/* Si es Admin, ve Panel. Si es Hermano, ve Biblioteca */}
               {isAdmin ? (
                 <Link
                   href="/admin"
-                  className="text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 hover:text-amber-900 transition-colors bg-amber-50 px-4 py-2 rounded-full border border-amber-100"
+                  className="text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 bg-amber-50 px-4 py-2 rounded-full border border-amber-100 shadow-sm"
                 >
-                  Panel de Control
+                  Panel Editorial
                 </Link>
               ) : (
                 <Link
@@ -76,19 +77,20 @@ export default function Header() {
 
               <Link
                 href="/galeria"
-                className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-black transition-colors"
+                className="hidden sm:block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-black transition-colors"
               >
                 Galería
               </Link>
 
               <button
                 onClick={logout}
-                className="text-[10px] font-bold tracking-[0.2em] uppercase bg-black text-white px-5 py-2.5 rounded-full hover:bg-amber-700 transition-all shadow-lg shadow-black/5 active:scale-90"
+                className="text-[10px] font-bold tracking-[0.2em] uppercase bg-black text-white px-5 py-2.5 rounded-full hover:bg-amber-700 transition-all shadow-lg active:scale-90"
               >
                 Salir
               </button>
             </>
           ) : (
+            /* Botón refinado para invitados */
             <Link
               href="/biblioteca"
               className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-900 bg-amber-100/50 px-6 py-2.5 rounded-full hover:bg-amber-200 transition-all border border-amber-200"

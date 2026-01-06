@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
@@ -11,71 +11,88 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false); // Switch entre Login y Registro
 
-  const ADMIN_EMAIL = "tu-correo@ejemplo.com";
+  // LISTA DE ADMINISTRADORES PARA REDIRECCIÓN
+  const ADMIN_EMAILS = ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"];
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      let userCredential;
+      
+      if (isRegistering) {
+        // REGISTRO DE NUEVO HERMANO
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        // LOGIN NORMAL
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      }
 
-      if (user.email === ADMIN_EMAIL) {
+      const user = userCredential.user;
+      const userEmail = user.email?.toLowerCase() || "";
+
+      // REDIRECCIÓN INTELIGENTE
+      if (ADMIN_EMAILS.includes(userEmail)) {
         router.push("/admin");
       } else {
-        router.push("/");
+        router.push("/biblioteca");
       }
-    } catch {
-      setError("Credenciales no válidas para acceso administrativo");
+    } catch (err: any) {
+      if (err.code === "auth/email-already-in-use") {
+        setError("Este correo ya tiene cuenta. Intenta iniciar sesión.");
+      } else if (err.code === "auth/weak-password") {
+        setError("La contraseña debe tener al menos 6 caracteres.");
+      } else {
+        setError("Error en los datos. Revisa tu correo y contraseña.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#F8F9FA] font-serif px-4">
+    <main className="min-h-screen flex items-center justify-center bg-[#fcfaf7] font-serif px-4">
       <form
-        onSubmit={handleLogin}
-        className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-100
-                   p-6 sm:p-10"
+        onSubmit={handleAuth}
+        className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-amber-50 p-8 sm:p-12 animate-in fade-in zoom-in duration-500"
       >
-        <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 uppercase tracking-widest">
-            Acceso Editorial
+        <div className="text-center mb-10">
+          <img src="/icon-192.png" className="w-12 h-12 mx-auto mb-6 grayscale opacity-20" alt="" />
+          <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-[0.2em]">
+            {isRegistering ? "Crear Cuenta" : "Bienvenido"}
           </h1>
-          <p className="text-gray-400 text-[11px] sm:text-xs mt-2 italic">
-            Administración del Consejero del Obrero
+          <p className="text-amber-700/50 text-[10px] mt-2 uppercase tracking-widest font-bold italic">
+            {isRegistering ? "Únete a la Biblioteca Digital" : "Acceso a la Obra del Obrero"}
           </p>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[9px] sm:text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">
+        <div className="space-y-6">
+          <div className="group">
+            <label className="block text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1 ml-1 group-focus-within:text-amber-600 transition-colors">
               Correo Electrónico
             </label>
             <input
               type="email"
-              placeholder="admin@ejemplo.com"
-              className="w-full border-b-2 border-gray-100 focus:border-black outline-none
-                         px-1 py-3 transition-all text-sm"
+              placeholder="tu@correo.com"
+              className="w-full border-b border-gray-100 focus:border-amber-400 outline-none px-1 py-3 transition-all text-sm bg-transparent"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
 
-          <div>
-            <label className="block text-[9px] sm:text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">
+          <div className="group">
+            <label className="block text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1 ml-1 group-focus-within:text-amber-600 transition-colors">
               Contraseña
             </label>
             <input
               type="password"
               placeholder="••••••••"
-              className="w-full border-b-2 border-gray-100 focus:border-black outline-none
-                         px-1 py-3 transition-all text-sm"
+              className="w-full border-b border-gray-100 focus:border-amber-400 outline-none px-1 py-3 transition-all text-sm bg-transparent"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -84,7 +101,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <p className="text-red-500 text-[11px] mt-4 bg-red-50 p-2 rounded text-center">
+          <p className="text-red-500 text-[10px] mt-6 bg-red-50 py-3 px-4 rounded-xl text-center font-bold uppercase tracking-wider">
             {error}
           </p>
         )}
@@ -92,21 +109,30 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-black text-white py-4 rounded-lg mt-8
-                     text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em]
-                     hover:bg-gray-800 transition-all disabled:bg-gray-400"
+          className="w-full bg-black text-white py-5 rounded-full mt-10 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-amber-700 transition-all shadow-xl active:scale-95 disabled:bg-gray-200"
         >
-          {loading ? "Verificando..." : "Entrar al Panel"}
+          {loading ? "Procesando..." : isRegistering ? "Registrarme Ahora" : "Entrar a la Biblioteca"}
         </button>
 
-        <button
-          type="button"
-          onClick={() => router.push("/")}
-          className="w-full text-gray-400 text-[9px] sm:text-[10px] mt-4
-                     hover:text-black transition-colors uppercase tracking-widest"
-        >
-          Regresar al Inicio
-        </button>
+        <div className="mt-8 space-y-4 text-center">
+          <button
+            type="button"
+            onClick={() => setIsRegistering(!isRegistering)}
+            className="text-[10px] text-amber-800/60 font-bold uppercase tracking-widest hover:text-black transition-colors"
+          >
+            {isRegistering ? "¿Ya tienes cuenta? Inicia Sesión" : "¿No tienes cuenta? Regístrate aquí"}
+          </button>
+          
+          <br />
+          
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="text-[9px] text-gray-300 uppercase tracking-[0.4em] hover:text-gray-900 transition-colors"
+          >
+            Regresar al Inicio
+          </button>
+        </div>
       </form>
     </main>
   );
