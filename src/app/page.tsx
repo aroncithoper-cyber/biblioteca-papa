@@ -4,15 +4,48 @@ import { useEffect, useState } from "react";
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    // Lógica para detectar si se puede instalar como App (PWA)
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") {
+      setInstallPrompt(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200 overflow-x-hidden">
+      
+      {/* BOTÓN FLOTANTE DE INSTALACIÓN (PWA) */}
+      {installPrompt && (
+        <div className="fixed bottom-8 left-0 right-0 z-[100] flex justify-center px-6 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+          <button 
+            onClick={handleInstallClick}
+            className="group flex items-center gap-4 px-8 py-4 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.3em] shadow-2xl border-2 border-white hover:bg-black transition-all active:scale-95"
+          >
+            <span className="text-lg">📥</span>
+            <span>Instalar App Oficial</span>
+          </button>
+        </div>
+      )}
+
       {/* Navegación Minimalista */}
       <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${scrolled ? "bg-white/80 backdrop-blur-md py-4 shadow-sm" : "bg-transparent py-8"}`}>
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
