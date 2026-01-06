@@ -1,9 +1,15 @@
 // public/sw.js
 self.addEventListener('install', (e) => {
-  console.log('Service Worker: Instalado');
+  // Fuerza a que el Service Worker se active de inmediato sin esperar
+  self.skipWaiting();
+  console.log('Service Worker: Instalado y Activado');
 });
 
 self.addEventListener('fetch', (e) => {
-  // Esto engaña al navegador para que crea que funciona offline
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  // Mantiene la App funcionando mientras haya internet
+  e.respondWith(
+    fetch(e.request).catch(() => {
+      return caches.match(e.request);
+    })
+  );
 });
