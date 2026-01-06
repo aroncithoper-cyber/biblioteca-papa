@@ -39,6 +39,9 @@ export default function AdminPage() {
   const [galleryFile, setGalleryFile] = useState<File | null>(null);
   const [galleryDesc, setGalleryDesc] = useState("");
 
+  // --- NUEVO: ESTADO PARA EDICIÓN ---
+  const [editingDoc, setEditingDoc] = useState<any>(null);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       const userEmail = user?.email?.toLowerCase() || "";
@@ -66,6 +69,26 @@ export default function AdminPage() {
     }
   };
 
+  // --- NUEVO: FUNCIÓN PARA GUARDAR LA EDICIÓN ---
+  const handleUpdateDoc = async () => {
+    if (!editingDoc) return;
+    setLoading(true);
+    try {
+      const docRef = doc(db, "documents", editingDoc.id);
+      await updateDoc(docRef, {
+        title: editingDoc.title,
+        isPublic: editingDoc.isPublic
+      });
+      alert("✅ Libro actualizado correctamente");
+      setEditingDoc(null); // Cierra la ventana
+      loadData(); // Recarga la lista
+    } catch (e: any) {
+      alert("❌ Error al actualizar: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const authorizeUser = async (docId: string) => {
     const email = userEmailToAuthorize[docId]?.trim().toLowerCase();
     if (!email) return alert("Escribe un correo válido");
@@ -88,7 +111,6 @@ export default function AdminPage() {
     try {
       console.log("1. Iniciando proceso de subida...");
       
-      // Subir Portada
       let coverUrl = "";
       if (cover) {
         console.log("2. Subiendo portada...");
@@ -97,11 +119,8 @@ export default function AdminPage() {
         await uploadBytes(coverRef, cover);
         coverUrl = await getDownloadURL(coverRef);
         console.log("Portada lista:", coverUrl);
-      } else {
-        console.log("Sin portada seleccionada.");
       }
 
-      // Subir PDF
       console.log("3. Subiendo PDF...");
       const pdfPath = `pdfs/${Date.now()}_${file.name}`;
       const pdfRef = ref(storage, pdfPath);
@@ -109,12 +128,11 @@ export default function AdminPage() {
       const fileUrl = await getDownloadURL(pdfRef);
       console.log("PDF listo:", fileUrl);
 
-      // Guardar en Firestore
       console.log("4. Guardando en base de datos...");
       await addDoc(collection(db, "documents"), {
         title: title.trim(),
         fileUrl: fileUrl,
-        coverUrl: coverUrl, // Si no hay, se guarda como string vacío ""
+        coverUrl: coverUrl,
         storagePath: pdfPath,
         isPublic: isPublic,
         authorizedEmails: [],
@@ -123,9 +141,7 @@ export default function AdminPage() {
 
       alert("🎉 ¡Libro publicado correctamente!");
       
-      // Limpiar
       setTitle(""); setFile(null); setCover(null); setIsPublic(false);
-      // Limpiar inputs visualmente
       const pdfInput = document.getElementById("pdfInput") as HTMLInputElement;
       const coverInput = document.getElementById("coverInput") as HTMLInputElement;
       if(pdfInput) pdfInput.value = "";
@@ -135,7 +151,6 @@ export default function AdminPage() {
 
     } catch (e: any) { 
       console.error(e);
-      // Aquí está la clave: te dirá el error real
       alert("❌ ERROR AL SUBIR: " + e.message); 
     } finally { 
       setLoading(false); 
@@ -177,8 +192,58 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20">
+    <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20 relative">
       <Header />
+      
+      {/* --- NUEVO: MODAL DE EDICIÓN --- */}
+      {editingDoc && (
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+            <h3 className="text-xl font-bold mb-6 text-gray-900">Editar Libro</h3>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Título del Libro</label>
+                <input 
+                  value={editingDoc.title}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, title: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <input 
+                  type="checkbox" 
+                  checked={editingDoc.isPublic} 
+                  onChange={(e) => setEditingDoc({ ...editingDoc, isPublic: e.target.checked })}
+                  className="w-5 h-5 accent-amber-600 cursor-pointer"
+                />
+                <div>
+                  <span className="block text-sm font-bold text-gray-900">Hacer Público</span>
+                  <span className="text-[10px] text-gray-400">Si está marcado, todos pueden verlo sin permiso.</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => setEditingDoc(null)}
+                  className="flex-1 py-3 text-gray-500 font-bold text-xs uppercase hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleUpdateDoc}
+                  disabled={loading}
+                  className="flex-1 py-3 bg-black text-white font-bold text-xs uppercase rounded-xl hover:bg-amber-600 transition-colors shadow-lg"
+                >
+                  {loading ? "Guardando..." : "Guardar Cambios"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="max-w-5xl mx-auto px-6 py-16">
         <h1 className="text-5xl font-bold text-gray-900 tracking-tighter mb-12 border-b border-amber-100 pb-10">Administración</h1>
 
@@ -286,13 +351,27 @@ export default function AdminPage() {
                     )}
                     <div>
                       <p className="font-bold text-xl text-gray-900">{d.title}</p>
-                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${d.isPublic ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
                         {d.isPublic ? 'Público' : 'Privado'}
                       </span>
                     </div>
                   </div>
-                  <div className="mt-4 flex justify-end">
-                    <button onClick={async () => { if(confirm('¿Eliminar?')) { await deleteDoc(doc(db, "documents", d.id)); loadData(); }}} className="text-[9px] text-red-300 hover:text-red-500 font-bold uppercase tracking-[0.2em] transition-colors">Eliminar</button>
+                  
+                  {/* --- NUEVO: BOTONES DE ACCIÓN --- */}
+                  <div className="mt-4 flex gap-3 justify-end">
+                    <button 
+                      onClick={() => setEditingDoc(d)}
+                      className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-100 transition-colors"
+                    >
+                      Editar
+                    </button>
+                    
+                    <button 
+                      onClick={async () => { if(confirm('¿Eliminar definitivamente este libro?')) { await deleteDoc(doc(db, "documents", d.id)); loadData(); }}} 
+                      className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-red-100 transition-colors"
+                    >
+                      Eliminar
+                    </button>
                   </div>
                 </div>
               </div>
