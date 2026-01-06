@@ -21,9 +21,13 @@ import Header from "@/components/Header";
 import Link from "next/link";
 
 export default function AdminPage() {
+  // --- LISTA DE ADMINISTRADORES (LA LLAVE DE SEGURIDAD) ---
+  const ADMIN_EMAILS = ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"];
+
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false); // Para ocultar el contenido hasta validar
   const [docs, setDocs] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]); // Nueva lista de solicitudes
+  const [requests, setRequests] = useState<any[]>([]); 
   const [userEmailToAuthorize, setUserEmailToAuthorize] = useState<{ [key: string]: string }>({});
   const router = useRouter();
 
@@ -39,7 +43,15 @@ export default function AdminPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) router.push("/"); 
+      const userEmail = user?.email?.toLowerCase() || "";
+      // Si no hay usuario o el correo no está en la lista, lo echamos
+      if (!user || !ADMIN_EMAILS.includes(userEmail)) {
+        router.push("/biblioteca"); 
+      } else {
+        // Si es admin, activamos la vista y cargamos los datos
+        setIsAdmin(true);
+        loadData();
+      }
     });
     return () => unsubscribe();
   }, [router]);
@@ -55,8 +67,6 @@ export default function AdminPage() {
     const snapReq = await getDocs(qReq);
     setRequests(snapReq.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
   };
-
-  useEffect(() => { loadData().catch(console.error); }, []);
 
   const authorizeUser = async (docId: string) => {
     const email = userEmailToAuthorize[docId]?.trim().toLowerCase();
@@ -115,6 +125,15 @@ export default function AdminPage() {
     } catch (e) { alert("Error"); }
     finally { setLoading(false); }
   };
+
+  // Si no ha validado que eres admin, mostramos pantalla de carga
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-[#fcfaf7] flex items-center justify-center">
+        <p className="font-serif italic text-gray-400 animate-pulse">Verificando credenciales de administrador...</p>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20">
@@ -182,7 +201,7 @@ export default function AdminPage() {
                 <div className="flex items-center gap-4">
                   <a 
                     href={`https://wa.me/${r.whatsapp.replace(/\+/g, '')}`} 
-                    target="_blank" 
+                    target={r.whatsapp} 
                     className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-green-600 transition-all flex items-center gap-2"
                   >
                     📱 WhatsApp
