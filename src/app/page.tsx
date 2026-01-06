@@ -117,9 +117,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer Final */}
+      {/* Footer Final - Con Link de Instalación */}
       <footer className="py-20 text-center bg-white/50 border-t border-amber-100">
         <p className="text-[10px] uppercase tracking-[0.8em] text-gray-300 font-bold mb-6">Jose Enrique Perez Leon</p>
+        <div className="flex justify-center gap-8 mb-6">
+          <Link href="/instalar" className="text-[9px] uppercase tracking-widest text-amber-600 font-bold hover:underline italic">Instalar App</Link>
+          <Link href="/biblioteca" className="text-[9px] uppercase tracking-widest text-gray-400 font-bold hover:underline italic">Biblioteca</Link>
+        </div>
         <p className="text-[11px] text-gray-300 italic tracking-widest">© 2026 — Consejero del Obrero</p>
       </footer>
     </div>
