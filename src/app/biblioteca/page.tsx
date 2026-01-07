@@ -8,10 +8,11 @@ import {
   query,
   addDoc,
   serverTimestamp,
+  where,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { useRouter } from "next/navigation"; // Importante para la redirección
+import { useRouter } from "next/navigation"; 
 import Header from "@/components/Header";
 import Link from "next/link";
 
@@ -29,21 +30,30 @@ export default function BibliotecaPage() {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  // Guardamos los IDs de los libros que el usuario YA solicitó
+  const [requestedBookIds, setRequestedBookIds] = useState<string[]>([]);
+  
   const router = useRouter();
 
-  // LISTA DE ADMINISTRADORES PARA REDIRECCIÓN AUTOMÁTICA
-  const ADMIN_EMAILS = ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"];
+  // NOTA: Quité la redirección automática para que tú como Admin puedas ver la biblioteca.
+  // El botón para ir al Panel sigue estando en el Header.
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const email = user.email?.toLowerCase() || "";
         setUserEmail(email);
 
-        // REDIRECCIÓN INTELIGENTE: Si eres admin, vas directo al Panel
-        if (ADMIN_EMAILS.includes(email)) {
-          router.push("/admin");
+        // Buscar qué libros ya solicitó este usuario para bloquear el botón
+        try {
+          const qReq = query(collection(db, "requests"), where("userEmail", "==", email));
+          const snapReq = await getDocs(qReq);
+          const ids = snapReq.docs.map((d) => d.data().bookId);
+          setRequestedBookIds(ids);
+        } catch (e) {
+          console.error("Error cargando solicitudes", e);
         }
+
       } else {
         setUserEmail(null);
       }
@@ -80,7 +90,6 @@ export default function BibliotecaPage() {
       <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-16 sm:pb-20 text-center animate-in">
         <div className="flex justify-center items-center gap-6 mb-8 sm:mb-10">
           <div className="h-px w-12 sm:w-16 bg-gradient-to-r from-transparent to-amber-200"></div>
-          {/* RUTA ACTUALIZADA A 512 */}
           <img
             src="/icon-512.png"
             className="w-12 h-12 sm:w-14 sm:h-14 grayscale opacity-40"
@@ -137,12 +146,16 @@ export default function BibliotecaPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-24 sm:gap-y-32 gap-x-12 sm:gap-x-16">
             {filteredPrivate.map((d, index) => {
               const hasAccess = d.authorizedEmails?.includes(userEmail || "");
+              // Verificamos si ya está solicitado
+              const alreadyRequested = requestedBookIds.includes(d.id);
+              
               return (
                 <BookCard
                   key={d.id}
                   doc={d}
                   index={index}
                   hasAccess={hasAccess}
+                  alreadyRequested={alreadyRequested}
                   userEmail={userEmail}
                 />
               );
@@ -172,6 +185,7 @@ export default function BibliotecaPage() {
                 doc={d}
                 index={index}
                 hasAccess={true}
+                alreadyRequested={false}
                 userEmail={userEmail}
               />
             ))}
@@ -181,7 +195,6 @@ export default function BibliotecaPage() {
 
       {/* FOOTER */}
       <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-24 sm:py-32 text-center">
-        {/* RUTA ACTUALIZADA A 512 */}
         <img
           src="/icon-512.png"
           className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-8 sm:mb-10 grayscale opacity-20"
@@ -203,16 +216,19 @@ function BookCard({
   doc,
   index,
   hasAccess,
+  alreadyRequested,
   userEmail,
 }: {
   doc: DocItem;
   index: number;
   hasAccess: boolean | undefined;
+  alreadyRequested: boolean;
   userEmail: string | null;
 }) {
   const [showModal, setShowModal] = useState(false);
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
+  const [localRequested, setLocalRequested] = useState(alreadyRequested);
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,7 +242,11 @@ function BookCard({
         status: "pendiente",
         createdAt: serverTimestamp(),
       });
-      alert("Solicitud enviada con éxito. El administrador te contactará pronto. ✅");
+      
+      // Mensaje de éxito con instrucciones
+      alert("✅ ¡Solicitud Enviada!\n\nPor favor, espera a que el administrador active tu acceso. Si es necesario, envía tu comprobante de pago por WhatsApp.");
+      
+      setLocalRequested(true); // Bloqueamos el botón localmente
       setShowModal(false);
       setPhone("");
     } catch {
@@ -272,7 +292,6 @@ function BookCard({
             <h4 className="text-white text-sm sm:text-base font-bold leading-relaxed line-clamp-4">
               {doc.title}
             </h4>
-            {/* RUTA ACTUALIZADA A 512 */}
             <img
               src="/icon-512.png"
               className="w-6 h-6 mx-auto opacity-30"
@@ -287,6 +306,7 @@ function BookCard({
           {doc.title}
         </h3>
 
+        {/* LÓGICA DE BOTONES MEJORADA */}
         {hasAccess ? (
           <Link
             href={`/documentos/${doc.id}`}
@@ -294,6 +314,12 @@ function BookCard({
           >
             Iniciar Lectura
           </Link>
+        ) : localRequested ? (
+          /* MENSAJE DE ESPERA / PAGO */
+          <div className="w-full py-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col items-center justify-center gap-1">
+             <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Solicitud Enviada</span>
+             <span className="text-[8px] text-amber-600/70 font-bold">Espera activación o envía ficha</span>
+          </div>
         ) : (
           <button
             onClick={() => setShowModal(true)}
@@ -309,28 +335,38 @@ function BookCard({
           <div className="bg-white rounded-[2.5rem] p-8 sm:p-10 max-w-sm w-full shadow-2xl">
             <form onSubmit={handleRequest} className="space-y-5">
               <h3 className="text-center font-bold text-gray-900">Solicitar Volumen</h3>
-              <p className="text-[10px] text-center text-gray-400 uppercase tracking-widest">
-                Déjanos tu WhatsApp para coordinar el acceso
-              </p>
-              <input
-                required
-                type="tel"
-                placeholder="+52 55..."
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full bg-[#fcfaf7] border border-amber-100 rounded-2xl px-5 py-3 text-sm outline-none"
-              />
+              <div className="bg-blue-50 p-4 rounded-xl">
+                <p className="text-[10px] text-blue-800 font-bold uppercase tracking-widest text-center mb-1">
+                  Instrucciones
+                </p>
+                <p className="text-[10px] text-blue-600 text-center leading-relaxed">
+                  Para acelerar tu acceso, proporciona tu WhatsApp. Si requiere pago, envía tu comprobante al administrador.
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-[9px] font-bold uppercase text-gray-400 pl-2">Tu WhatsApp</label>
+                <input
+                  required
+                  type="tel"
+                  placeholder="Ej: 55 1234 5678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-[#fcfaf7] border border-amber-100 rounded-2xl px-5 py-3 text-sm outline-none focus:border-black transition-colors"
+                />
+              </div>
+
               <button
                 type="submit"
                 disabled={sending || !userEmail}
-                className="w-full py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-[0.4em]"
+                className="w-full py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-[0.4em] hover:bg-green-600 transition-colors"
               >
                 {sending ? "Enviando..." : "Enviar Solicitud"}
               </button>
               <button 
                 type="button" 
                 onClick={() => setShowModal(false)}
-                className="w-full text-[9px] uppercase tracking-widest text-gray-300 font-bold"
+                className="w-full text-[9px] uppercase tracking-widest text-gray-300 font-bold hover:text-red-400 transition-colors"
               >
                 Cancelar
               </button>
