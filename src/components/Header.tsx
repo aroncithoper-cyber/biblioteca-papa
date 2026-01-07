@@ -67,34 +67,42 @@ export default function Header() {
         {/* NAVEGACIÓN INTELIGENTE */}
         <nav className="flex items-center gap-3 sm:gap-6">
           
-          {/* BOTÓN DE AYUDA (Nuevo) */}
+          {/* BOTÓN DE AYUDA (Soporte) */}
           <button
             onClick={handleSupport}
             className="flex items-center justify-center w-8 h-8 rounded-full bg-green-50 text-green-600 border border-green-100 hover:bg-green-600 hover:text-white transition-all shadow-sm"
             title="Ayuda y Soporte"
           >
-            <span className="text-sm">?</span>
+            <span className="text-sm font-bold">?</span>
           </button>
 
           {user ? (
             <>
               {/* LÓGICA DE ROLES */}
               {isAdmin ? (
-                /* BOTÓN DE ADMIN (Visible en celular y PC) */
                 <Link
                   href="/admin"
                   className="text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 bg-amber-50 px-4 py-2 rounded-full border border-amber-100 shadow-sm hover:bg-amber-100 transition-colors"
                 >
-                  Panel Editorial
+                  Panel
                 </Link>
-              ) : (
-                <Link
-                  href="/biblioteca"
-                  className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-500 hover:text-black transition-colors"
-                >
-                  Biblioteca
-                </Link>
-              )}
+              ) : null}
+
+              {/* ENLACES PRINCIPALES */}
+              <Link
+                href="/biblioteca"
+                className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-500 hover:text-black transition-colors"
+              >
+                Libros
+              </Link>
+
+              {/* NUEVO: Enlace a Biografía (Autor) */}
+              <Link
+                href="/biografia"
+                className="hidden sm:block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-600 transition-colors"
+              >
+                Autor
+              </Link>
 
               <Link
                 href="/galeria"
