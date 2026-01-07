@@ -33,10 +33,10 @@ export default function Header() {
 
   const isAdmin = !!user && ADMIN_EMAILS.includes((user.email || "").toLowerCase());
 
-  // Función para soporte por WhatsApp
+  // Función para soporte por WhatsApp (Tu número configurado)
   const handleSupport = () => {
     const message = encodeURIComponent("Hola, necesito ayuda con la plataforma Consejero del Obrero.");
-    window.open(`https://wa.me/5215530270067?text=${message}`, "_blank"); // Reemplaza las X con tu número
+    window.open(`https://wa.me/5215530270067?text=${message}`, "_blank"); 
   };
 
   return (
@@ -80,9 +80,10 @@ export default function Header() {
             <>
               {/* LÓGICA DE ROLES */}
               {isAdmin ? (
+                /* BOTÓN DE ADMIN (Visible en celular y PC) */
                 <Link
                   href="/admin"
-                  className="hidden sm:block text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 bg-amber-50 px-4 py-2 rounded-full border border-amber-100 shadow-sm hover:bg-amber-100 transition-colors"
+                  className="text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 bg-amber-50 px-4 py-2 rounded-full border border-amber-100 shadow-sm hover:bg-amber-100 transition-colors"
                 >
                   Panel Editorial
                 </Link>
