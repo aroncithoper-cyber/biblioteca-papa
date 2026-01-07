@@ -33,7 +33,7 @@ export default function Header() {
 
   const isAdmin = !!user && ADMIN_EMAILS.includes((user.email || "").toLowerCase());
 
-  // Función para soporte por WhatsApp (Tu número configurado)
+  // Función para soporte por WhatsApp
   const handleSupport = () => {
     const message = encodeURIComponent("Hola, necesito ayuda con la plataforma Consejero del Obrero.");
     window.open(`https://wa.me/5215530270067?text=${message}`, "_blank"); 
@@ -82,7 +82,7 @@ export default function Header() {
               {isAdmin ? (
                 <Link
                   href="/admin"
-                  className="text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 bg-amber-50 px-4 py-2 rounded-full border border-amber-100 shadow-sm hover:bg-amber-100 transition-colors"
+                  className="hidden md:block text-[10px] font-bold tracking-[0.2em] uppercase text-amber-700 bg-amber-50 px-4 py-2 rounded-full border border-amber-100 shadow-sm hover:bg-amber-100 transition-colors"
                 >
                   Panel
                 </Link>
@@ -96,14 +96,15 @@ export default function Header() {
                 Libros
               </Link>
 
-              {/* NUEVO: Enlace a Biografía (Autor) */}
+              {/* ENLACE A BIOGRAFÍA (AUTOR) - Visible en celular ahora */}
               <Link
                 href="/biografia"
-                className="hidden sm:block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-600 transition-colors"
+                className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-600 transition-colors"
               >
                 Autor
               </Link>
 
+              {/* Galería (Oculta en celular para no saturar, visible en PC) */}
               <Link
                 href="/galeria"
                 className="hidden sm:block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-600 transition-colors"

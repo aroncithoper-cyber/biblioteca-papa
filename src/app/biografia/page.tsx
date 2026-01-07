@@ -10,7 +10,6 @@ export default function BiografiaPage() {
 
       {/* --- HERO SECTION --- */}
       <section className="relative h-[65vh] flex items-end justify-center overflow-hidden bg-gray-900">
-        {/* CORRECCIÓN DE FOTO: Agregado 'object-top' para que se vea la cara y no los pies */}
         <div className="absolute inset-0 w-full h-full">
             <img 
             src="/papa-predicando.png" 
@@ -55,7 +54,7 @@ export default function BiografiaPage() {
                 <div className="relative">
                   <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-200 rounded-full ring-4 ring-white"></div>
                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1983</p>
-                  <p className="text-sm font-bold text-gray-900">Grado de Ayuda</p>
+                  <p className="text-sm font-bold text-gray-900">Jerarquía de Ayuda</p>
                   <p className="text-xs text-gray-500 mt-1">Inicio del servicio</p>
                 </div>
 
@@ -63,7 +62,7 @@ export default function BiografiaPage() {
                 <div className="relative">
                   <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-400 rounded-full ring-4 ring-white"></div>
                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1985</p>
-                  <p className="text-sm font-bold text-gray-900">Grado de Diácono</p>
+                  <p className="text-sm font-bold text-gray-900">Jerarquía de Diácono</p>
                   <p className="text-xs text-gray-500 mt-1">Cuesta Colorada, Hgo.</p>
                 </div>
 
@@ -71,7 +70,7 @@ export default function BiografiaPage() {
                 <div className="relative">
                   <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-600 rounded-full ring-4 ring-white"></div>
                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1987</p>
-                  <p className="text-sm font-bold text-gray-900">Consagración como Ministro</p>
+                  <p className="text-sm font-bold text-gray-900">Jerarquía de Ministro</p>
                   <p className="text-xs text-gray-500 mt-1">A la edad de 22 años</p>
                 </div>
 
@@ -85,23 +84,22 @@ export default function BiografiaPage() {
               </div>
             </div>
 
-            {/* COLUMNA DERECHA: TEXTO SOBRIO Y HUMILDE */}
+            {/* COLUMNA DERECHA: TEXTO */}
             <div className="lg:col-span-8 space-y-12">
               
               <div className="space-y-6">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
                   Una historia de <span className="text-amber-700 decoration-amber-200 decoration-4 underline-offset-4">servicio.</span>
                 </h2>
-                {/* Texto ajustado: Más hechos, menos adjetivos */}
                 <p className="text-gray-600 leading-loose text-lg text-justify font-light">
                   <span className="font-bold text-gray-900 text-xl">L</span>a trayectoria de <strong>J. Enrique Pérez L.</strong> comenzó en 1982, asistiendo a las reuniones de preparación bajo la instrucción de los Ministros Santiago Montiel y Zeferino Jiménez. Con el deseo de ser útil en la obra, comenzó a atender diversas localidades contando únicamente con cartas credenciales, destacando su labor constante durante dos años en Cuesta Colorada, Hidalgo.
                 </p>
                 <p className="text-gray-600 leading-loose text-lg text-justify font-light">
-                  El trabajo en el campo y la necesidad de obreros permitieron que escalara en las jerarquías eclesiásticas, recibiendo el grado de Ayuda, posteriormente el de Diácono en 1985, y finalmente siendo consagrado como <strong>Ministro el 6 de octubre de 1987</strong>, asumiendo esta responsabilidad a la temprana edad de 22 años.
+                  El trabajo en el campo y la necesidad de obreros permitieron que escalara en las jerarquías eclesiásticas, recibiendo la <strong>Jerarquía de Ayuda</strong>, posteriormente la <strong>Jerarquía de Diácono</strong> en 1985, y finalmente siendo consagrado en la <strong>Jerarquía de Ministro</strong> el 6 de octubre de 1987, asumiendo esta responsabilidad a la temprana edad de 22 años.
                 </p>
               </div>
 
-              {/* Cita sobre la escritura (Mantenemos su voz genuina) */}
+              {/* Cita */}
               <div className="relative py-8">
                  <div className="absolute left-0 top-0 text-8xl text-amber-100 font-serif -translate-y-4">“</div>
                  <blockquote className="relative z-10 pl-8 border-l-4 border-amber-500 italic text-xl md:text-2xl text-gray-800 leading-relaxed font-serif">
