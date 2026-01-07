@@ -47,7 +47,7 @@ export default function BiografiaPage() {
                 />
               </div>
 
-              {/* TIMELINE CORREGIDO CON JERARQUÍAS */}
+              {/* TIMELINE ACTUALIZADO CON FECHAS */}
               <div className="pl-4 border-l-2 border-amber-100 space-y-8 relative">
                 
                 {/* 1983 - Ayuda */}
@@ -63,7 +63,7 @@ export default function BiografiaPage() {
                   <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-400 rounded-full ring-4 ring-white"></div>
                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1985</p>
                   <p className="text-sm font-bold text-gray-900">Jerarquía de Diácono</p>
-                  <p className="text-xs text-gray-500 mt-1">Cuesta Colorada, Hgo.</p>
+                  <p className="text-xs text-gray-500 mt-1">19 de Marzo</p>
                 </div>
 
                 {/* 1987 - Ministro */}
@@ -71,7 +71,7 @@ export default function BiografiaPage() {
                   <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-600 rounded-full ring-4 ring-white"></div>
                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1987</p>
                   <p className="text-sm font-bold text-gray-900">Jerarquía de Ministro</p>
-                  <p className="text-xs text-gray-500 mt-1">A la edad de 22 años</p>
+                  <p className="text-xs text-gray-500 mt-1">6 de Octubre</p>
                 </div>
 
                 {/* Actualidad - Servicio */}
@@ -84,7 +84,7 @@ export default function BiografiaPage() {
               </div>
             </div>
 
-            {/* COLUMNA DERECHA: TEXTO */}
+            {/* COLUMNA DERECHA: HISTORIA DE SERVICIO */}
             <div className="lg:col-span-8 space-y-12">
               
               <div className="space-y-6">
@@ -92,10 +92,11 @@ export default function BiografiaPage() {
                   Una historia de <span className="text-amber-700 decoration-amber-200 decoration-4 underline-offset-4">servicio.</span>
                 </h2>
                 <p className="text-gray-600 leading-loose text-lg text-justify font-light">
-                  <span className="font-bold text-gray-900 text-xl">L</span>a trayectoria de <strong>J. Enrique Pérez L.</strong> comenzó en 1982, asistiendo a las reuniones de preparación bajo la instrucción de los Ministros Santiago Montiel y Zeferino Jiménez. Con el deseo de ser útil en la obra, comenzó a atender diversas localidades contando únicamente con cartas credenciales, destacando su labor constante durante dos años en Cuesta Colorada, Hidalgo.
+                  <span className="font-bold text-gray-900 text-xl">L</span>a trayectoria de <strong>J. Enrique Pérez L.</strong> comenzó en 1982, asistiendo a las reuniones de preparación bajo la instrucción de los Ministros Santiago Montiel y Zeferino Jiménez. Con el deseo de ser útil en la obra, recibió la <strong>Jerarquía de Ayuda</strong>, comenzando una etapa de aprendizaje y servicio.
                 </p>
+                {/* PÁRRAFO CORREGIDO: MÁS BONITO Y SIN CAUSALIDAD DIRECTA */}
                 <p className="text-gray-600 leading-loose text-lg text-justify font-light">
-                  El trabajo en el campo y la necesidad de obreros permitieron que escalara en las jerarquías eclesiásticas, recibiendo la <strong>Jerarquía de Ayuda</strong>, posteriormente la <strong>Jerarquía de Diácono</strong> en 1985, y finalmente siendo consagrado en la <strong>Jerarquía de Ministro</strong> el 6 de octubre de 1987, asumiendo esta responsabilidad a la temprana edad de 22 años.
+                  Durante casi dos años, atendió la localidad de Cuesta Colorada, Hidalgo, viajando cada quince días a esta zona de difícil acceso. Fueron tiempos de siembra y esfuerzo que forjaron su carácter ministerial. Su caminar continuó con la recepción de la <strong>Jerarquía de Diácono</strong> el 19 de marzo de 1985, y posteriormente su consagración en la <strong>Jerarquía de Ministro</strong> el 6 de octubre de 1987, entregando su juventud al servicio de la iglesia.
                 </p>
               </div>
 
