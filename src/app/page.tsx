@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-// Usamos el Header externo para mantener el código limpio y profesional
 import Header from "@/components/Header";
+// Importamos la guía de instalación
+import InstallGuideModal from "@/components/InstallGuideModal";
 
 export default function LandingPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -27,19 +29,33 @@ export default function LandingPage() {
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200">
       <Header />
+      
+      {/* VENTANA DE AYUDA PARA INSTALAR */}
+      <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
-      {/* BOTÓN FLOTANTE DE INSTALACIÓN */}
-      {installPrompt && (
-        <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000">
+      {/* BOTONES FLOTANTES DE INSTALACIÓN */}
+      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
+        
+        {/* Botón Android Automático */}
+        {installPrompt && (
           <button 
             onClick={handleInstallClick} 
-            className="flex items-center gap-3 px-6 py-3 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-2xl border-2 border-white hover:bg-black transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-2xl border-2 border-white hover:bg-black transition-all hover:scale-105 active:scale-95 pointer-events-auto"
           >
             <span className="text-base">📲</span>
             <span>Instalar App</span>
           </button>
-        </div>
-      )}
+        )}
+
+        {/* Botón de Ayuda (Visible siempre para iPhone/Dudas) */}
+        <button 
+          onClick={() => setShowGuide(true)} 
+          className="flex items-center gap-2 px-5 py-3 bg-white text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+        >
+          <span className="text-base">❓</span>
+          <span>¿Cómo instalar?</span>
+        </button>
+      </div>
 
       {/* --- SECCIÓN HERO (PORTADA) --- */}
       <section className="relative pt-10 pb-32 px-6 overflow-hidden text-center">
@@ -80,11 +96,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- SECCIÓN BIOGRAFÍA (TEXTO HUMILDE Y FOTO) --- */}
+      {/* --- SECCIÓN BIOGRAFÍA --- */}
       <section className="py-24 bg-white border-t border-amber-50">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 md:gap-20 items-center">
           
-          {/* FOTO DEL AUTOR: Usará 'autor.png' (la que renombraste) */}
+          {/* FOTO DEL AUTOR */}
           <div className="relative group mx-auto w-full max-w-md">
             <div className="absolute inset-0 bg-amber-100 rounded-[2.5rem] rotate-3 group-hover:rotate-6 transition-transform duration-700" />
             <div className="relative aspect-[3/4] bg-gray-100 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
@@ -93,14 +109,14 @@ export default function LandingPage() {
                 className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000"
                 alt="J. Enrique Pérez L."
                 onError={(e) => {
-                  e.currentTarget.src = "/icon-512.png"; // Imagen de respaldo si no carga
+                  e.currentTarget.src = "/icon-512.png"; 
                   e.currentTarget.classList.add("opacity-20", "p-20");
                 }}
               />
             </div>
           </div>
 
-          {/* TEXTO BIOGRÁFICO AJUSTADO */}
+          {/* TEXTO BIOGRÁFICO */}
           <div className="space-y-8 text-center md:text-left">
             <h2 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tight leading-tight">
               Un corazón dispuesto al <span className="text-amber-600 underline decoration-amber-200 decoration-4 underline-offset-4">servicio.</span>

@@ -25,6 +25,16 @@ type DocItem = {
   createdAt?: any;
 };
 
+// --- FUNCIÓN AUXILIAR PARA DETECTAR EL NÚMERO EN EL TÍTULO ---
+// Busca palabras como "Numero", "Num", "No.", "Vol" seguidas de dígitos.
+const getBookNumber = (title: string) => {
+  if (!title) return Infinity;
+  // Expresión regular que busca el número (insensible a mayúsculas/minúsculas)
+  const match = title.match(/(?:numero|número|num|no\.?|vol\.?)\s*(\d+)/i);
+  // Si encuentra número, lo devuelve. Si no, devuelve Infinity para mandarlo al final.
+  return match ? parseInt(match[1], 10) : Infinity;
+};
+
 export default function BibliotecaPage() {
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,9 +44,6 @@ export default function BibliotecaPage() {
   const [requestedBookIds, setRequestedBookIds] = useState<string[]>([]);
   
   const router = useRouter();
-
-  // NOTA: Quité la redirección automática para que tú como Admin puedas ver la biblioteca.
-  // El botón para ir al Panel sigue estando en el Header.
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -59,16 +66,46 @@ export default function BibliotecaPage() {
       }
     });
 
+    // CARGA Y ORDENAMIENTO DE DOCUMENTOS
     (async () => {
-      const q = query(collection(db, "documents"), orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
-      const fetchedDocs = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      }));
-      setDocs(fetchedDocs);
-      setLoading(false);
-    })().catch(() => setLoading(false));
+      try {
+        // Traemos los documentos (por defecto ordenados por fecha de creación como respaldo)
+        const q = query(collection(db, "documents"), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        
+        let fetchedDocs = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+
+        // --- AQUÍ APLICAMOS EL ORDENAMIENTO POR NÚMERO ---
+        fetchedDocs = fetchedDocs.sort((a, b) => {
+          const numA = getBookNumber(a.title);
+          const numB = getBookNumber(b.title);
+
+          // 1. Si ambos tienen número, ordenar de menor a mayor (1, 2, 3...)
+          if (numA !== Infinity && numB !== Infinity) {
+            return numA - numB;
+          }
+          
+          // 2. Si solo A tiene número, va primero
+          if (numA !== Infinity) return -1;
+          
+          // 3. Si solo B tiene número, va primero
+          if (numB !== Infinity) return 1;
+
+          // 4. Si ninguno tiene número, mantenemos el orden original (fecha)
+          return 0;
+        });
+        // -------------------------------------------------
+
+        setDocs(fetchedDocs);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error cargando documentos:", error);
+        setLoading(false);
+      }
+    })();
 
     return () => unsub();
   }, [router]);
@@ -317,8 +354,8 @@ function BookCard({
         ) : localRequested ? (
           /* MENSAJE DE ESPERA / PAGO */
           <div className="w-full py-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col items-center justify-center gap-1">
-             <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Solicitud Enviada</span>
-             <span className="text-[8px] text-amber-600/70 font-bold">Espera activación o envía ficha</span>
+              <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Solicitud Enviada</span>
+              <span className="text-[8px] text-amber-600/70 font-bold">Espera activación o envía ficha</span>
           </div>
         ) : (
           <button
