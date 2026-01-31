@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   where,
   deleteDoc,
-  doc,
+  doc, // Esta es la herramienta de Firebase (NO BORRAR)
   setDoc
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -110,43 +110,45 @@ export default function BibliotecaPage() {
     return () => unsub();
   }, [router]);
 
-  // --- FUNCIÓN TOGGLE FAVORITE ---
-  const toggleFavorite = async (doc: DocItem) => {
+  // --- FUNCIÓN TOGGLE FAVORITE CORREGIDA ---
+  // Cambiamos el nombre del argumento de 'doc' a 'item' para evitar conflictos
+  const toggleFavorite = async (item: DocItem) => {
     if (!userId) return alert("Inicia sesión para guardar en tu estante.");
 
-    const isSaved = savedBookIds.includes(doc.id);
+    const isSaved = savedBookIds.includes(item.id);
     
-    // Optimistic UI Update (Actualizamos visualmente primero)
+    // Optimistic UI Update
     if (isSaved) {
-        setSavedBookIds(prev => prev.filter(id => id !== doc.id));
+        setSavedBookIds(prev => prev.filter(id => id !== item.id));
     } else {
-        setSavedBookIds(prev => [...prev, doc.id]);
+        setSavedBookIds(prev => [...prev, item.id]);
     }
 
     try {
         if (isSaved) {
-            // Borrar de favoritos (Necesitamos buscar el ID del documento en favoritos)
-            const q = query(collection(db, "user_favorites"), where("userId", "==", userId), where("contentId", "==", doc.id));
+            // Borrar de favoritos
+            const q = query(collection(db, "user_favorites"), where("userId", "==", userId), where("contentId", "==", item.id));
             const snap = await getDocs(q);
             snap.forEach(async (d) => {
+                // AQUÍ ESTABA EL ERROR: Ahora 'doc' se refiere correctamente a la función de Firebase
                 await deleteDoc(doc(db, "user_favorites", d.id));
             });
         } else {
             // Agregar a favoritos
             await addDoc(collection(db, "user_favorites"), {
                 userId,
-                contentId: doc.id,
+                contentId: item.id,
                 type: "book",
-                title: doc.title,
-                coverUrl: doc.coverUrl || "",
+                title: item.title,
+                coverUrl: item.coverUrl || "",
                 createdAt: serverTimestamp()
             });
         }
     } catch (error) {
         console.error("Error guardando favorito", error);
         // Revertir si falla
-        if (isSaved) setSavedBookIds(prev => [...prev, doc.id]);
-        else setSavedBookIds(prev => prev.filter(id => id !== doc.id));
+        if (isSaved) setSavedBookIds(prev => [...prev, item.id]);
+        else setSavedBookIds(prev => prev.filter(id => id !== item.id));
     }
   };
 
