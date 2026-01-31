@@ -46,14 +46,14 @@ export default function AprenderPage() {
         <div className="text-center mb-16 space-y-6 animate-in fade-in zoom-in duration-1000">
           <div className="inline-block px-4 py-1.5 border border-amber-200 rounded-full bg-white shadow-sm">
             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-700">
-              Senda del Saber
+              Enseñanza Bíblica
             </span>
           </div>
           <h1 className="text-4xl md:text-7xl font-black text-gray-900 tracking-tighter leading-none">
-            Formación Ministerial
+            Aprende más de <br className="hidden sm:block"/> la Palabra
           </h1>
-          <p className="text-gray-500 max-w-2xl mx-auto text-sm md:text-lg font-light">
-            Recursos audiovisuales seleccionados para la edificación del cuerpo de obreros.
+          <p className="text-gray-500 max-w-2xl mx-auto text-sm md:text-lg font-light italic">
+            "Escudriñad las Escrituras... ellas son las que dan testimonio de mí."
           </p>
         </div>
 
@@ -91,7 +91,8 @@ export default function AprenderPage() {
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
                   {selectedVideo.title}
                 </h2>
-                <p className="text-gray-500 mt-3 text-base leading-relaxed border-l-4 border-amber-200 pl-4">
+                <div className="w-12 h-1 bg-amber-500 rounded-full my-4"></div>
+                <p className="text-gray-600 mt-3 text-base leading-relaxed pl-2 border-l-2 border-amber-100">
                   {selectedVideo.description}
                 </p>
               </div>
