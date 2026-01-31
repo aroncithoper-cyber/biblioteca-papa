@@ -17,10 +17,12 @@ export default function AuthGuard({
   const [loading, setLoading] = useState(true);
 
   // RUTAS PÚBLICAS (no piden login)
-  const PUBLIC_ROUTES = ["/", "/instalar", "/login"];
+  // Nota: Agrega aquí cualquier otra ruta que quieras que sea libre
+  const PUBLIC_ROUTES = ["/", "/instalar", "/login", "/registro"];
 
   const isPublic = PUBLIC_ROUTES.includes(pathname);
 
+  // 1. Detectar usuario
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -29,26 +31,33 @@ export default function AuthGuard({
     return () => unsub();
   }, []);
 
-  // Si la ruta es pública, NO bloqueamos
+  // 2. Redirección Segura (Aquí es donde arreglamos el error)
+  useEffect(() => {
+    // Solo redirigimos si YA cargó, NO es pública y NO hay usuario
+    if (!loading && !isPublic && !user) {
+      router.push("/login");
+    }
+  }, [loading, isPublic, user, router]);
+
+  // Si la ruta es pública, dejamos pasar sin bloquear
   if (isPublic) {
     return <>{children}</>;
   }
 
-  // Cargando sesión (spinner ligero, bien para celular)
-  if (loading) {
+  // Pantalla de Carga "Super Pro"
+  // Se muestra mientras verifica el usuario o mientras redirige
+  if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fcfaf7]">
-        <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#fcfaf7] gap-4">
+        {/* Spinner elegante color Ámbar */}
+        <div className="w-10 h-10 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-900/40 animate-pulse">
+          Verificando...
+        </p>
       </div>
     );
   }
 
-  // Ruta privada y SIN usuario → mandar a login
-  if (!user) {
-    router.push("/login");
-    return null;
-  }
-
-  // Ruta privada y CON usuario
+  // Ruta privada y CON usuario confirmado
   return <>{children}</>;
 }
