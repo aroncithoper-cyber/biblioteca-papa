@@ -96,7 +96,19 @@ export default function Header() {
                 Libros
               </Link>
 
-              {/* ENLACE A BIOGRAFÍA (AUTOR) - Visible en celular ahora */}
+              {/* --- NUEVA PESTAÑA: APRENDER --- */}
+              <Link
+                href="/aprender"
+                className="relative text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-600 transition-colors flex items-center gap-1"
+              >
+                Aprender
+                {/* Badge de Nuevo */}
+                <span className="absolute -top-3 -right-3 sm:static sm:top-auto sm:right-auto bg-amber-100 text-amber-700 text-[6px] px-1.5 py-0.5 rounded-full border border-amber-200 animate-pulse">
+                  NUEVO
+                </span>
+              </Link>
+
+              {/* ENLACE A BIOGRAFÍA (AUTOR) */}
               <Link
                 href="/biografia"
                 className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 hover:text-amber-600 transition-colors"
