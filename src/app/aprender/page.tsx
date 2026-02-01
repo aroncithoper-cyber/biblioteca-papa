@@ -18,8 +18,18 @@ import { onAuthStateChanged } from "firebase/auth";
 // IMPORTANTE: Importamos el cerebro del reproductor
 import { usePlayer } from "@/lib/PlayerContext";
 
+// --- ARREGLO DEL ERROR: Definimos qué es un Video ---
+type VideoItem = {
+  id: string;
+  title: string;
+  youtubeId: string;
+  description?: string;
+  createdAt?: any;
+};
+
 export default function AprenderPage() {
-  const [videos, setVideos] = useState<any[]>([]);
+  // Le decimos que esta lista guardará 'VideoItem'
+  const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Usamos el contexto global en lugar de estado local para el video seleccionado
@@ -59,10 +69,16 @@ export default function AprenderPage() {
       try {
         const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
         const querySnapshot = await getDocs(q);
+        
+        // --- ARREGLO DEL ERROR: Mapeo explícito ---
+        // Aquí le aseguramos a la computadora que los datos son correctos
         const videosData = querySnapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
-        }));
+          title: doc.data().title || "Sin título",
+          youtubeId: doc.data().youtubeId || "",
+          description: doc.data().description || "",
+          createdAt: doc.data().createdAt
+        })) as VideoItem[];
 
         setVideos(videosData);
 
