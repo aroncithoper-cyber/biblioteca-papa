@@ -1,35 +1,29 @@
 import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
 import { Metadata, Viewport } from "next";
+import { PlayerProvider } from "@/lib/PlayerContext"; // <--- Importamos el cerebro
+import GlobalPlayer from "@/components/GlobalPlayer"; // <--- Importamos el reproductor flotante
 
 export const metadata: Metadata = {
-  // Título que aparece en la pestaña del navegador y en Google
   title: "Consejero del Obrero | Legado Digital",
-  
-  // Descripción que aparece debajo del título en Google
   description: "Biblioteca oficial de la obra de Jose Enrique Perez Leon. Estudios, libros y enseñanzas para la edificación del obrero.",
-  
   manifest: "/manifest.json",
-  
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Consejero",
   },
-  
   icons: {
     icon: "/icon-512.png",
     apple: "/icon-512.png",
   },
-
-  // --- ESTO ES LO QUE LEE WHATSAPP ---
   openGraph: {
     title: "Consejero del Obrero | Legado Digital",
     description: "Accede a la colección digital de estudios y libros de Jose Enrique Perez Leon.",
     siteName: "Consejero del Obrero",
     images: [
       {
-        url: "/icon-512.png", // WhatsApp usará tu logo de alta calidad como portada
+        url: "/icon-512.png",
         width: 512,
         height: 512,
         alt: "Logo Consejero",
@@ -38,8 +32,6 @@ export const metadata: Metadata = {
     locale: "es_MX",
     type: "website",
   },
-  
-  // Configuración extra para Twitter/X
   twitter: {
     card: "summary",
     title: "Consejero del Obrero",
@@ -48,13 +40,12 @@ export const metadata: Metadata = {
   },
 };
 
-// --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE PARA EL ZOOM CON DEDOS ---
 export const viewport: Viewport = {
   themeColor: "#fcfaf7",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 5, // Permitimos hasta 5x de zoom
-  userScalable: true, // ¡ACTIVADO! Para que funcionen los dedos en el celular
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({
@@ -65,9 +56,15 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="antialiased bg-[#fcfaf7]">
-        <AuthGuard>{children}</AuthGuard>
+        {/* Envolvemos todo en el Proveedor del Reproductor */}
+        <PlayerProvider>
+          <AuthGuard>
+            {children}
+            {/* Aquí vive el reproductor flotante para toda la app */}
+            <GlobalPlayer />
+          </AuthGuard>
+        </PlayerProvider>
 
-        {/* Registro del Service Worker optimizado */}
         <script
           dangerouslySetInnerHTML={{
             __html: `

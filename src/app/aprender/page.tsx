@@ -15,12 +15,16 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+// IMPORTANTE: Importamos el cerebro del reproductor
+import { usePlayer } from "@/lib/PlayerContext";
 
 export default function AprenderPage() {
   const [videos, setVideos] = useState<any[]>([]);
-  const [selectedVideo, setSelectedVideo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
+  // Usamos el contexto global en lugar de estado local para el video seleccionado
+  const { currentVideo, playVideo } = usePlayer();
+
   // Estados para Favoritos
   const [user, setUser] = useState<any>(null);
   const [savedVideoIds, setSavedVideoIds] = useState<string[]>([]);
@@ -61,8 +65,12 @@ export default function AprenderPage() {
         }));
 
         setVideos(videosData);
-        if (videosData.length > 0) {
-          setSelectedVideo(videosData[0]);
+
+        // LÓGICA PRO:
+        // Si ya hay un video sonando globalmente (currentVideo), NO lo interrumpimos.
+        // Solo si NO hay nada sonando, ponemos el primero de la lista.
+        if (videosData.length > 0 && !currentVideo) {
+          playVideo(videosData[0]);
         }
       } catch (error) {
         console.error("Error cargando videos:", error);
@@ -72,7 +80,8 @@ export default function AprenderPage() {
     };
 
     fetchVideos();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // El array vacío asegura que solo cargue al inicio
 
   // --- LÓGICA GUARDAR FAVORITO ---
   const toggleFavorite = async (video: any) => {
@@ -80,7 +89,7 @@ export default function AprenderPage() {
 
     const isSaved = savedVideoIds.includes(video.id);
 
-    // Actualización visual inmediata (Optimistic UI)
+    // Actualización visual inmediata
     if (isSaved) {
         setSavedVideoIds(prev => prev.filter(id => id !== video.id));
     } else {
@@ -110,7 +119,7 @@ export default function AprenderPage() {
         }
     } catch (e) {
         console.error(e);
-        // Revertir si falla
+        // Revertir
         if (isSaved) setSavedVideoIds(prev => [...prev, video.id]);
         else setSavedVideoIds(prev => prev.filter(id => id !== video.id));
     }
@@ -140,16 +149,21 @@ export default function AprenderPage() {
         {/* --- CONTENIDO --- */}
         <div className="grid lg:grid-cols-3 gap-10">
           
-          {/* REPRODUCTOR PRINCIPAL */}
+          {/* REPRODUCTOR PRINCIPAL (Vinculado al Global) */}
           <div className="lg:col-span-2 space-y-6">
             {loading ? (
               <div className="aspect-video bg-gray-200 rounded-[2rem] animate-pulse w-full shadow-lg"></div>
-            ) : selectedVideo ? (
+            ) : currentVideo ? (
               <div className="group relative aspect-video rounded-[2rem] overflow-hidden shadow-2xl bg-black border-[6px] border-white ring-1 ring-gray-100 transition-all duration-500 hover:shadow-amber-200/40">
+                {/* NOTA: Aquí mostramos el video en grande. 
+                   Al navegar a otra página, este componente se desmonta 
+                   y el GlobalPlayer (en layout) tomará el relevo si así se configura.
+                */}
                 <iframe
                   className="absolute inset-0 w-full h-full"
-                  src={`https://www.youtube.com/embed/${selectedVideo.youtubeId}?rel=0&modestbranding=1&showinfo=0&autoplay=1`}
-                  title={selectedVideo.title}
+                  // Agregamos start=0 para evitar saltos raros
+                  src={`https://www.youtube.com/embed/${currentVideo.youtubeId}?rel=0&modestbranding=1&showinfo=0&autoplay=1`}
+                  title={currentVideo.title}
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
@@ -158,29 +172,29 @@ export default function AprenderPage() {
             ) : (
               <div className="aspect-video bg-gray-50 rounded-[2rem] border-4 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
                 <span className="text-4xl mb-2">📺</span>
-                <p className="text-xs font-bold uppercase tracking-widest">Iniciando videoteca...</p>
+                <p className="text-xs font-bold uppercase tracking-widest">Selecciona un video</p>
               </div>
             )}
 
             {/* INFORMACIÓN Y BOTÓN GUARDAR */}
-            {!loading && selectedVideo && (
+            {!loading && currentVideo && (
               <div className="px-2 animate-in slide-in-from-bottom-2">
                 <div className="flex justify-between items-start gap-4">
                     <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight mb-4">
-                    {selectedVideo.title}
+                    {currentVideo.title}
                     </h2>
                     
                     {/* BOTÓN FAVORITO */}
                     <button 
-                        onClick={() => toggleFavorite(selectedVideo)}
+                        onClick={() => toggleFavorite(currentVideo)}
                         className={`group flex items-center justify-center w-12 h-12 rounded-full border transition-all shadow-sm hover:shadow-md active:scale-90 flex-shrink-0 ${
-                            savedVideoIds.includes(selectedVideo.id) 
+                            savedVideoIds.includes(currentVideo.id) 
                             ? "bg-red-50 border-red-200 text-red-500" 
                             : "bg-white border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-100"
                         }`}
-                        title={savedVideoIds.includes(selectedVideo.id) ? "Quitar de Mi Estante" : "Guardar en Mi Estante"}
+                        title={savedVideoIds.includes(currentVideo.id) ? "Quitar de Mi Estante" : "Guardar en Mi Estante"}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={savedVideoIds.includes(selectedVideo.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} className="w-6 h-6 transition-transform group-hover:scale-110">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={savedVideoIds.includes(currentVideo.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} className="w-6 h-6 transition-transform group-hover:scale-110">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
                         </svg>
                     </button>
@@ -188,7 +202,7 @@ export default function AprenderPage() {
 
                 <div className="w-12 h-1 bg-amber-500 rounded-full mb-4"></div>
                 <p className="text-gray-600 text-base leading-relaxed font-light text-justify">
-                  {selectedVideo.description}
+                  {currentVideo.description}
                 </p>
               </div>
             )}
@@ -210,9 +224,10 @@ export default function AprenderPage() {
                 videos.map((video) => (
                   <button
                     key={video.id}
-                    onClick={() => setSelectedVideo(video)}
+                    // AQUI ESTA LA CLAVE: Usamos playVideo del contexto global
+                    onClick={() => playVideo(video)}
                     className={`group w-full text-left p-3 rounded-2xl border transition-all duration-300 ${
-                      selectedVideo?.id === video.id
+                      currentVideo?.id === video.id
                         ? "bg-gray-900 border-gray-900 shadow-lg scale-[1.02]"
                         : "bg-white border-gray-100 hover:border-amber-200 hover:bg-amber-50"
                     }`}
@@ -221,24 +236,23 @@ export default function AprenderPage() {
                       <div className="relative w-24 aspect-video bg-gray-200 rounded-xl overflow-hidden flex-shrink-0">
                         <img
                           src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
-                          className={`w-full h-full object-cover ${selectedVideo?.id === video.id ? 'opacity-70' : ''}`}
+                          className={`w-full h-full object-cover ${currentVideo?.id === video.id ? 'opacity-70' : ''}`}
                           alt=""
                         />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex justify-between items-start">
                             <h4 className={`text-xs font-bold line-clamp-2 leading-tight mb-1 ${
-                                selectedVideo?.id === video.id ? "text-white" : "text-gray-900 group-hover:text-amber-800"
+                                currentVideo?.id === video.id ? "text-white" : "text-gray-900 group-hover:text-amber-800"
                             }`}>
                             {video.title}
                             </h4>
-                            {/* Iconito de guardado en la lista */}
                             {savedVideoIds.includes(video.id) && (
                                 <span className="text-[10px] text-red-500 ml-2">❤️</span>
                             )}
                         </div>
                         <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">
-                          {selectedVideo?.id === video.id ? "Escuchando..." : "Estudiar"}
+                          {currentVideo?.id === video.id ? "Escuchando..." : "Estudiar"}
                         </p>
                       </div>
                     </div>
