@@ -1,5 +1,6 @@
 "use client";
 
+/* TEMPORAL: contenido comentado para aislar el crash.
 import dynamic from "next/dynamic";
 import { doc, getDoc } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
@@ -25,8 +26,10 @@ async function toDownloadUrl(fileField: string): Promise<string> {
   }
   return getDownloadURL(ref(storage, storagePath));
 }
+*/
 
 export default function DocumentoPage() {
+  /* TEMPORAL: todo el cuerpo comentado
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const [title, setTitle] = useState("");
@@ -69,55 +72,12 @@ export default function DocumentoPage() {
 
     return () => { alive = false; };
   }, [params?.id, router]);
+  */
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif">
-      <Header />
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="flex items-center justify-between mb-12 border-b border-amber-100 pb-6">
-          <button
-            onClick={() => router.push("/biblioteca")}
-            className="text-[11px] uppercase tracking-[0.3em] text-gray-400 hover:text-black"
-          >
-            ← Volver a la Biblioteca
-          </button>
-          <span className="text-[11px] uppercase tracking-[0.3em] text-amber-700 font-bold">
-            Lectura Protegida
-          </span>
-        </div>
-
-        <div className="text-center mb-16 space-y-4">
-          <p className="text-xs uppercase tracking-[0.5em] text-amber-600/60">Legacy Collection</p>
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 tracking-tighter leading-tight">
-            {loading ? "Abriendo los archivos..." : title}
-          </h1>
-        </div>
-
-        <div className="relative">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center min-h-[600px] bg-white/50 rounded-[40px] border border-amber-100 shadow-inner">
-              <div className="w-16 h-16 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-              <p className="mt-6 text-sm italic text-amber-800/40 tracking-widest uppercase">
-                Cargando del archivo digital
-              </p>
-            </div>
-          ) : (
-            pdfUrl && documentId ? (
-              <div className="p-2 md:p-8 bg-white/40 rounded-[40px] shadow-2xl border border-white/60">
-                <EbookViewer fileUrl={pdfUrl} documentId={documentId} />
-              </div>
-            ) : null
-          )}
-        </div>
-
-        <div className="mt-20 text-center pb-12 pt-8 border-t border-amber-50 max-w-xs mx-auto">
-          <p className="text-[10px] uppercase tracking-[0.5em] text-gray-300 leading-loose">
-            Jose Enrique Perez Leon
-            <br />
-            <span className="text-amber-600/40 font-bold italic text-xs">Consejero del Obrero</span>
-          </p>
-        </div>
-      </section>
-    </main>
+    <div style={{ padding: 40 }}>
+      <h1>Página documentos OK</h1>
+      <p>Si ves esto, el crash no es de Next ni de la ruta.</p>
+    </div>
   );
 }
