@@ -7,9 +7,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 
-const EbookViewer = dynamic(() => import("@/components/EbookViewer"), {
-  ssr: false,
-});
+const EbookViewer = dynamic(
+  () => import("@/components/EbookViewerClient"),
+  { ssr: false }
+);
 
 export default function DocumentoPage() {
   const router = useRouter();
@@ -85,7 +86,9 @@ export default function DocumentoPage() {
             <div className="w-12 h-12 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          pdfUrl && id && <EbookViewer fileUrl={pdfUrl} documentId={id} />
+          pdfUrl && id && (
+            <EbookViewer fileUrl={pdfUrl} documentId={id} />
+          )
         )}
       </section>
     </main>
