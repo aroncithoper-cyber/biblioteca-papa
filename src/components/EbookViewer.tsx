@@ -11,63 +11,67 @@ import {
 } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import type { DefaultLayoutPluginProps } from "@react-pdf-viewer/default-layout";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-/** Worker externo para evitar fallos de WorkerMessageHandler */
-const PDFJS_WORKER_URL = "https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js";
-
+const PDFJS_WORKER_URL =
+  "https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js";
 const STORAGE_KEY_PREFIX = "ebook-page-";
 
 type EbookViewerProps = {
-  /** URL del PDF (desde Firestore, ej. URL de Firebase Storage) */
   fileUrl: string;
-  /** ID del documento para memoria de lectura en localStorage */
   documentId: string;
 };
 
-export default function EbookViewer({
-  fileUrl,
-  documentId,
-}: EbookViewerProps) {
-  const [isMounted, setIsMounted] = useState(false);
+export default function EbookViewer({ fileUrl, documentId }: EbookViewerProps) {
+  const [mounted, setMounted] = useState(false);
+  const [plugins, setPlugins] = useState<Plugin[]>([]);
+  const [savedPage, setSavedPage] = useState(0);
+  const [toolbarVisible, setToolbarVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [savedPage, setSavedPage] = useState<number>(0);
-  const [toolbarVisible, setToolbarVisible] = useState(true);
   const lastScrollY = useRef(0);
   const isMobile = useRef(false);
 
   const storageKey = `${STORAGE_KEY_PREFIX}${documentId}`;
 
-  // Worker solo se renderiza cuando el componente está en el navegador
+  // Crear plugins y leer localStorage SOLO después del mount (evita hidratación #300)
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    const opts: DefaultLayoutPluginProps = {
+      sidebarTabs: (defaultTabs) => defaultTabs,
+      toolbarPlugin: {
+        fullScreenPlugin: {
+          onEnterFullScreen: (zoom) => zoom(SpecialZoomLevel.PageWidth),
+          onExitFullScreen: (zoom) => zoom(SpecialZoomLevel.PageWidth),
+        },
+      },
+    };
+    const instance = defaultLayoutPlugin(opts);
+    setPlugins([instance]);
 
-  // Recuperar última página desde localStorage
-  useEffect(() => {
     try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw !== null) {
-        const page = parseInt(raw, 10);
-        if (Number.isFinite(page) && page >= 0) setSavedPage(page);
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw !== null) {
+          const page = parseInt(raw, 10);
+          if (Number.isFinite(page) && page >= 0) setSavedPage(page);
+        }
       }
     } catch {
-      // ignorar si localStorage no está disponible
+      // ignorar
     }
+    setMounted(true);
   }, [storageKey]);
 
-  // Detección móvil y ocultar barra al hacer scroll hacia abajo
+  // Ocultar barra en móvil al hacer scroll (solo cuando ya está mounted)
   useEffect(() => {
+    if (!mounted) return;
     const checkMobile = () => {
       isMobile.current = window.matchMedia("(max-width: 767px)").matches;
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
-
     const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-
+    if (!scrollEl) return () => window.removeEventListener("resize", checkMobile);
     let ticking = false;
     const handleScroll = () => {
       if (!ticking) {
@@ -85,42 +89,34 @@ export default function EbookViewer({
         ticking = true;
       }
     };
-
     scrollEl.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
       window.removeEventListener("resize", checkMobile);
       scrollEl.removeEventListener("scroll", handleScroll);
     };
-  }, []);
-
-  const defaultLayoutPluginInstance = useMemo(() => {
-    const opts: DefaultLayoutPluginProps = {
-      sidebarTabs: (defaultTabs) => defaultTabs,
-      toolbarPlugin: {
-        fullScreenPlugin: {
-          onEnterFullScreen: (zoom) => zoom(SpecialZoomLevel.PageWidth),
-          onExitFullScreen: (zoom) => zoom(SpecialZoomLevel.PageWidth),
-        },
-      },
-    };
-    return defaultLayoutPlugin(opts);
-  }, []);
+  }, [mounted]);
 
   const onPageChange = (e: { currentPage: number }) => {
     try {
-      localStorage.setItem(storageKey, String(e.currentPage));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(storageKey, String(e.currentPage));
+      }
     } catch {
       // ignorar
     }
   };
 
-  const plugins: Plugin[] = useMemo(
-    () => [defaultLayoutPluginInstance],
-    [defaultLayoutPluginInstance]
-  );
-
   if (!fileUrl) return <p>Cargando libro...</p>;
-  if (!isMounted) return <p>Cargando libro...</p>;
+  if (!mounted || plugins.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] bg-[#fcfaf7] rounded-2xl border border-amber-100/80">
+        <div className="w-12 h-12 border-2 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
+        <p className="mt-4 text-sm text-amber-800/70 font-medium">
+          Cargando libro...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div
