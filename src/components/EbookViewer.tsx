@@ -14,6 +14,10 @@ import { auth } from "@/lib/firebase";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 
+/** Versión de pdfjs-dist; debe coincidir con la de package.json para evitar WorkerMessageHandler */
+const PDFJS_WORKER_VERSION = "3.4.120";
+const PDFJS_WORKER_CDN = `https://unpkg.com/pdfjs-dist@${PDFJS_WORKER_VERSION}/build/pdf.worker.min.mjs`;
+
 const STORAGE_KEY_PREFIX = "ebook-page-";
 
 type EbookViewerProps = {
@@ -137,9 +141,6 @@ export default function EbookViewer({
     [defaultLayoutPluginInstance]
   );
 
-  // Worker: usa el worker local que ya tienes en public
-  const workerUrl = "/pdfjs/pdf.worker.min.mjs";
-
   return (
     <div
       ref={containerRef}
@@ -156,7 +157,7 @@ export default function EbookViewer({
         className="rpv-ebook-scroll h-full overflow-auto"
         style={{ background: "#fcfaf7" }}
       >
-        <Worker workerUrl={workerUrl}>
+        <Worker workerUrl={PDFJS_WORKER_CDN}>
           <div
             className="rpv-core__viewer rpv-core__viewer--ebook"
             data-testid="ebook-viewer"
