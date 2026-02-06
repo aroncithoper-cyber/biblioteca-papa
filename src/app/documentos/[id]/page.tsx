@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
@@ -25,7 +25,6 @@ export default function DocumentoPage() {
   const [title, setTitle] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
   const [loading, setLoading] = useState(true);
-  const [authToken, setAuthToken] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -67,26 +66,6 @@ export default function DocumentoPage() {
       alive = false;
     };
   }, [id, router]);
-
-  // Token de Firebase para cargar el PDF de forma segura vía /api/pdf
-  useEffect(() => {
-    let cancelled = false;
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (!user) {
-        setAuthToken(null);
-        return;
-      }
-      user.getIdToken(true).then((token) => {
-        if (!cancelled) setAuthToken(token);
-      }).catch(() => {
-        if (!cancelled) setAuthToken(null);
-      });
-    });
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, []);
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif transition-colors duration-500">
@@ -151,11 +130,7 @@ export default function DocumentoPage() {
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 p-2 md:p-8 bg-white/40 rounded-[40px] shadow-2xl shadow-amber-900/5 border border-white/60">
               {pdfUrl && id && (
-                <EbookViewer
-                  fileUrl={pdfUrl}
-                  documentId={id}
-                  authToken={authToken}
-                />
+                <EbookViewer fileUrl={pdfUrl} documentId={id} />
               )}
             </div>
           )}

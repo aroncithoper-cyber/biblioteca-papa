@@ -9,44 +9,25 @@ import {
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import type { DefaultLayoutPluginProps } from "@react-pdf-viewer/default-layout";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { auth } from "@/lib/firebase";
 
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 
-/** Versión de pdfjs-dist; debe coincidir con la de package.json para evitar WorkerMessageHandler */
-const PDFJS_WORKER_VERSION = "3.4.120";
-const PDFJS_WORKER_CDN = `https://unpkg.com/pdfjs-dist@${PDFJS_WORKER_VERSION}/build/pdf.worker.min.mjs`;
+/** Worker externo para evitar fallos de WorkerMessageHandler */
+const PDFJS_WORKER_URL = "https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js";
 
 const STORAGE_KEY_PREFIX = "ebook-page-";
 
 type EbookViewerProps = {
-  /** URL del PDF (puede ser ruta de Storage o URL completa) */
+  /** URL del PDF (desde Firestore, ej. URL de Firebase Storage) */
   fileUrl: string;
   /** ID del documento para memoria de lectura en localStorage */
   documentId: string;
-  /** Token de Firebase para cargar el PDF de forma segura vía API */
-  authToken: string | null;
 };
-
-function getPdfUrl(fileUrl: string, authToken: string | null): string {
-  const isPath = !/^https?:\/\//i.test(fileUrl);
-  if (isPath && typeof window !== "undefined") {
-    const base = window.location.origin;
-    return `${base}/api/pdf?path=${encodeURIComponent(fileUrl)}`;
-  }
-  return fileUrl;
-}
-
-function getHttpHeaders(authToken: string | null): Record<string, string> | undefined {
-  if (!authToken) return undefined;
-  return { Authorization: `Bearer ${authToken}` };
-}
 
 export default function EbookViewer({
   fileUrl,
   documentId,
-  authToken,
 }: EbookViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -119,15 +100,6 @@ export default function EbookViewer({
     return defaultLayoutPlugin(opts);
   }, []);
 
-  const pdfUrl = useMemo(
-    () => getPdfUrl(fileUrl, authToken),
-    [fileUrl, authToken]
-  );
-  const httpHeaders = useMemo(
-    () => getHttpHeaders(authToken),
-    [authToken]
-  );
-
   const onPageChange = (e: { currentPage: number }) => {
     try {
       localStorage.setItem(storageKey, String(e.currentPage));
@@ -157,12 +129,11 @@ export default function EbookViewer({
         className="rpv-ebook-scroll h-full overflow-auto"
         style={{ background: "#fcfaf7" }}
       >
-        <Worker workerUrl={PDFJS_WORKER_CDN}>
+        <Worker workerUrl={PDFJS_WORKER_URL}>
           <div
             className="rpv-core__viewer rpv-core__viewer--ebook"
             data-testid="ebook-viewer"
             style={{
-              // Fondo crema y páginas con sombra de papel
               ["--rpv-core__inner-page-background-color" as string]: "#fff",
               ["--rpv-core__doc-loading-background-color" as string]: "#fcfaf7",
               ["--rpv-core__page-layer-box-shadow" as string]:
@@ -170,9 +141,7 @@ export default function EbookViewer({
             }}
           >
             <Viewer
-              fileUrl={pdfUrl}
-              httpHeaders={httpHeaders}
-              withCredentials={false}
+              fileUrl={fileUrl}
               plugins={plugins}
               initialPage={savedPage}
               defaultScale={SpecialZoomLevel.PageWidth}
