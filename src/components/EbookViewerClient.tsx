@@ -33,7 +33,8 @@ export default function EbookViewerClient({
   const lastScrollY = useRef(0);
   const isMobile = useRef(false);
 
-  const storageKey = `${STORAGE_KEY_PREFIX}${documentId}`;
+  const safeDocumentId = documentId ?? "";
+  const storageKey = `${STORAGE_KEY_PREFIX}${safeDocumentId}`;
 
   // Plugin creado directamente en el render (solo corre en cliente por dynamic ssr: false)
   const defaultLayoutPluginInstance = useMemo(() => {
@@ -106,7 +107,9 @@ export default function EbookViewerClient({
     }
   };
 
-  if (!fileUrl) return <p>Cargando libro...</p>;
+  if (typeof fileUrl !== "string" || !fileUrl.trim()) {
+    return <p>Cargando libro...</p>;
+  }
 
   return (
     <div

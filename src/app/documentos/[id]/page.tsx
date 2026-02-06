@@ -35,33 +35,34 @@ export default function DocumentoPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id;
 
-  const [title, setTitle] = useState("");
-  const [pdfUrl, setPdfUrl] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState<string>("");
+  const [pdfUrl, setPdfUrl] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!id) return;
+    const docId = typeof id === "string" ? id : Array.isArray(id) ? id[0] ?? "" : "";
+    if (!docId) return;
     let alive = true;
 
     (async () => {
       try {
-        const snap = await getDoc(doc(db, "documents", id));
+        const snap = await getDoc(doc(db, "documents", docId));
         if (!snap.exists()) {
           router.push("/biblioteca");
           return;
         }
 
         const data = snap.data();
-        if (!alive) return;
+        if (!alive || !data) return;
 
-        const fileField = data.fileUrl ?? data.pdfUrl ?? data.path ?? "";
-        if (!fileField || typeof fileField !== "string") {
+        const fileField = (data.fileUrl ?? data.pdfUrl ?? data.path ?? "") as string;
+        if (typeof fileField !== "string" || !fileField.trim()) {
           router.push("/biblioteca");
           return;
         }
 
-        setTitle(data.title || "Volumen de Estudio");
-        const downloadUrl = await toDownloadUrl(fileField);
+        setTitle((data.title as string) || "Volumen de Estudio");
+        const downloadUrl = await toDownloadUrl(fileField.trim());
         if (!alive) return;
         setPdfUrl(downloadUrl);
         setLoading(false);
@@ -74,6 +75,8 @@ export default function DocumentoPage() {
       alive = false;
     };
   }, [id, router]);
+
+  const safeId = typeof id === "string" ? id : Array.isArray(id) ? id[0] ?? "" : "";
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif">
@@ -106,9 +109,9 @@ export default function DocumentoPage() {
             <div className="w-12 h-12 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          pdfUrl && id && (
-            <EbookViewer fileUrl={pdfUrl} documentId={id} />
-          )
+          pdfUrl && safeId ? (
+            <EbookViewer fileUrl={pdfUrl} documentId={safeId} />
+          ) : null
         )}
       </section>
     </main>
