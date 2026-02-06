@@ -29,7 +29,7 @@ export default function EbookViewer({
   fileUrl,
   documentId,
 }: EbookViewerProps) {
-  const [isClient, setIsClient] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [savedPage, setSavedPage] = useState<number>(0);
@@ -39,9 +39,9 @@ export default function EbookViewer({
 
   const storageKey = `${STORAGE_KEY_PREFIX}${documentId}`;
 
-  // Marcar que ya estamos en el cliente (browser) antes de mostrar el Worker
+  // Worker solo se renderiza cuando el componente está en el navegador
   useEffect(() => {
-    setIsClient(true);
+    setIsMounted(true);
   }, []);
 
   // Recuperar última página desde localStorage
@@ -120,7 +120,7 @@ export default function EbookViewer({
   );
 
   if (!fileUrl) return <p>Cargando libro...</p>;
-  if (!isClient) return <p>Cargando libro...</p>;
+  if (!isMounted) return <p>Cargando libro...</p>;
 
   return (
     <div
