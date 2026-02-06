@@ -2,10 +2,28 @@
 
 import dynamic from "next/dynamic";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDownloadURL, ref } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
+
+/** Convierte path de Storage (o gs://) a URL pública de descarga. */
+async function toDownloadUrl(fileField: string): Promise<string> {
+  const trimmed = fileField.trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+  let storagePath = trimmed;
+  if (trimmed.startsWith("gs://")) {
+    const match = /^gs:\/\/[^/]+\/o\/(.+)$/.exec(trimmed);
+    storagePath = match ? decodeURIComponent(match[1]) : trimmed.replace(/^gs:\/\/[^/]+\/o\//, "");
+  } else {
+    storagePath = trimmed.replace(/^\/+/, "");
+  }
+  const pdfRef = ref(storage, storagePath);
+  return getDownloadURL(pdfRef);
+}
 
 const EbookViewer = dynamic(
   () => import("@/components/EbookViewerClient"),
@@ -36,14 +54,16 @@ export default function DocumentoPage() {
         const data = snap.data();
         if (!alive) return;
 
-        const fileUrl = data.fileUrl || data.pdfUrl;
-        if (!fileUrl) {
+        const fileField = data.fileUrl ?? data.pdfUrl ?? data.path ?? "";
+        if (!fileField || typeof fileField !== "string") {
           router.push("/biblioteca");
           return;
         }
 
         setTitle(data.title || "Volumen de Estudio");
-        setPdfUrl(fileUrl);
+        const downloadUrl = await toDownloadUrl(fileField);
+        if (!alive) return;
+        setPdfUrl(downloadUrl);
         setLoading(false);
       } catch {
         router.push("/biblioteca");
