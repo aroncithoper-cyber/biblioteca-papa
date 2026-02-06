@@ -1,9 +1,29 @@
 import { NextResponse } from "next/server";
 import { getDownloadURL, ref } from "firebase/storage";
 import { storage } from "@/lib/firebase";
+import { verifyFirebaseToken } from "@/lib/firebase-admin";
 
 export async function GET(req: Request) {
   try {
+    const authHeader = req.headers.get("Authorization");
+    const token =
+      authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "missing auth", message: "Authorization: Bearer <token> requerido" },
+        { status: 401 }
+      );
+    }
+
+    const result = await verifyFirebaseToken(token);
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: "invalid auth", message: "Token inválido o expirado" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const path = searchParams.get("path");
 
@@ -11,15 +31,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "missing path" }, { status: 400 });
     }
 
-    // Normaliza: quita "/" inicial si viene como "/pdfs/..."
     const cleanPath = path.replace(/^\/+/, "");
 
-    // URL firmada de Firebase Storage (server-side)
     const url = await getDownloadURL(ref(storage, cleanPath));
 
-    // Trae el PDF desde el server (evita CORS del navegador)
     const res = await fetch(url, {
-      // importante para evitar caché raro en despliegues
       cache: "no-store",
       redirect: "follow",
     });
@@ -37,17 +53,15 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        // Para que el navegador lo trate como documento (no descarga forzada)
         "Content-Disposition": 'inline; filename="documento.pdf"',
-        // Evita caché
         "Cache-Control": "no-store, max-age=0",
-        // Esto ayuda a que varios visores/pdfjs no fallen en algunos casos
         "Accept-Ranges": "bytes",
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "unknown";
     return NextResponse.json(
-      { error: "internal error", message: err?.message || "unknown" },
+      { error: "internal error", message },
       { status: 500 }
     );
   }
