@@ -1,5 +1,8 @@
 "use client";
 
+import "@react-pdf-viewer/core/lib/styles/index.css";
+import "@react-pdf-viewer/default-layout/lib/styles/index.css";
+
 import {
   Worker,
   Viewer,
@@ -9,9 +12,6 @@ import {
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import type { DefaultLayoutPluginProps } from "@react-pdf-viewer/default-layout";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-import "@react-pdf-viewer/core/lib/styles/index.css";
-import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 
 /** Worker externo para evitar fallos de WorkerMessageHandler */
 const PDFJS_WORKER_URL = "https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js";
@@ -29,6 +29,7 @@ export default function EbookViewer({
   fileUrl,
   documentId,
 }: EbookViewerProps) {
+  const [isClient, setIsClient] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [savedPage, setSavedPage] = useState<number>(0);
@@ -37,6 +38,11 @@ export default function EbookViewer({
   const isMobile = useRef(false);
 
   const storageKey = `${STORAGE_KEY_PREFIX}${documentId}`;
+
+  // Marcar que ya estamos en el cliente (browser) antes de mostrar el Worker
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Recuperar última página desde localStorage
   useEffect(() => {
@@ -112,6 +118,9 @@ export default function EbookViewer({
     () => [defaultLayoutPluginInstance],
     [defaultLayoutPluginInstance]
   );
+
+  if (!fileUrl) return <p>Cargando libro...</p>;
+  if (!isClient) return <p>Cargando libro...</p>;
 
   return (
     <div
