@@ -52,7 +52,7 @@ export default function GlobalPlayer() {
   }, [currentVideo, isPlaying, togglePlay, playedSeconds]);
 
   // --- SINCRONIZACIÓN DE TIEMPO ---
-  // 2. BLINDAJE: Usamos (state: any) para que TypeScript no confunda el evento
+  // 2. BLINDAJE: Usamos (state: any)
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
 
@@ -112,9 +112,9 @@ export default function GlobalPlayer() {
           // 3. BLINDAJE: Tipo explícito para duración
           onDuration={(d: number) => setDuration(d)}
           
-          // Aquí usamos la función blindada
           onProgress={handleProgress}
           
+          // 4. BLINDAJE FINAL: Ponemos "as any" aquí para que deje pasar playerVars
           config={{
             youtube: {
               playerVars: { 
@@ -122,7 +122,7 @@ export default function GlobalPlayer() {
                 modestbranding: 1,
                 origin: typeof window !== "undefined" ? window.location.origin : undefined
               }
-            }
+            } as any
           }}
         />
       </div>
