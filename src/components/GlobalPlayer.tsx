@@ -5,14 +5,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
-// Importación dinámica "Nuclear" (Para pasar el build de Vercel)
+// Importación dinámica "Nuclear" (Para pasar el build de Vercel sin errores)
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
   
-  // Referencia 'any' para control total
+  // Referencia 'any' para tener control total de métodos internos
   const playerRef = useRef<any>(null);
   
   // Estados
@@ -23,28 +23,15 @@ export default function GlobalPlayer() {
   // Detectamos si estamos en la página "Aprender"
   const isLearnPage = pathname === "/aprender";
 
-  // Montaje seguro
+  // Protección de montaje (Evita errores de hidratación)
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // --- LOGICA DE REANUDACIÓN AUTOMÁTICA ---
-  useEffect(() => {
-    if (!isLearnPage && isMounted && currentVideo && isPlaying) {
-      const timeout = setTimeout(() => {
-         // Verificamos si el player interno está listo
-         if (playerRef.current?.getInternalPlayer()) {
-             // Forzamos actualización visual si es necesario
-         }
-      }, 500);
-      return () => clearTimeout(timeout);
-    }
-  }, [isLearnPage, isMounted, currentVideo, isPlaying]);
-
-
   // --- MEDIA SESSION (Controles Pantalla Bloqueo) ---
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
+    // Si estamos en Aprender, NO tocamos la media session
     if (!isMounted || !currentVideo || isLearnPage) return;
 
     if (typeof window !== "undefined" && "mediaSession" in navigator) {
@@ -56,40 +43,52 @@ export default function GlobalPlayer() {
           artwork: [{ src: "/icon-512.png", sizes: "512x512", type: "image/png" }],
         });
 
+        // HANDLERS
         navigator.mediaSession.setActionHandler("play", () => { if (!isPlaying) togglePlay(); });
         navigator.mediaSession.setActionHandler("pause", () => { if (isPlaying) togglePlay(); });
         
-        // CORRECCIÓN CLAVE: Usamos getCurrentTime() directo del player, no la variable de estado
         navigator.mediaSession.setActionHandler("previoustrack", () => {
           if (playerRef.current) {
-            const actualTime = playerRef.current.getCurrentTime();
-            playerRef.current.seekTo(Math.max(actualTime - 10, 0), 'seconds');
-          }
-        });
-        navigator.mediaSession.setActionHandler("nexttrack", () => {
-          if (playerRef.current) {
-            const actualTime = playerRef.current.getCurrentTime();
-            playerRef.current.seekTo(actualTime + 10, 'seconds');
+             const currentTime = playerRef.current.getCurrentTime();
+             playerRef.current.seekTo(Math.max(currentTime - 10, 0), 'seconds');
           }
         });
         
-        // Soporte para la barra deslizante del celular
+        navigator.mediaSession.setActionHandler("nexttrack", () => {
+          if (playerRef.current) {
+             const currentTime = playerRef.current.getCurrentTime();
+             playerRef.current.seekTo(currentTime + 10, 'seconds');
+          }
+        });
+
         navigator.mediaSession.setActionHandler("seekto", (details) => {
             if (playerRef.current && details.seekTime) {
                 playerRef.current.seekTo(details.seekTime, 'seconds');
             }
         });
 
-      } catch (e) { /* Ignorar */ }
+      } catch (e) { /* Ignorar errores de soporte */ }
     }
-  }, [currentVideo, isPlaying, togglePlay, isMounted, isLearnPage]); // Quitamos playedSeconds de aquí para evitar loops
 
-  // --- PROGRESO (AQUÍ ESTABA EL ERROR DE LA BARRA LOCA) ---
+    // LIMPIEZA ELEGANTE (Para evitar handlers fantasma al desmontar)
+    return () => {
+        if (typeof window !== "undefined" && "mediaSession" in navigator) {
+            try {
+                navigator.mediaSession.setActionHandler("play", null);
+                navigator.mediaSession.setActionHandler("pause", null);
+                navigator.mediaSession.setActionHandler("previoustrack", null);
+                navigator.mediaSession.setActionHandler("nexttrack", null);
+                navigator.mediaSession.setActionHandler("seekto", null);
+            } catch (e) {}
+        }
+    };
+  }, [currentVideo, isPlaying, togglePlay, isMounted, isLearnPage]);
+
+  // --- PROGRESO SEGURO ---
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
     
-    // VALIDACIÓN ESTRICTA: Solo actualizamos el celular si la duración es un número real y mayor a 0
-    // Esto evita que la barra salte al final cuando el video está cargando.
+    // Validación estricta para evitar la "barra loca" en móviles
     if (
         !isLearnPage && 
         typeof navigator !== "undefined" && 
@@ -111,8 +110,8 @@ export default function GlobalPlayer() {
   if (!isMounted) return null;
   if (!currentVideo) return null;
 
+  // Lógica "Modo Fantasma": Ocultar en lugar de destruir
   const shouldBeVisible = !isLearnPage;
-  // Truco: Si estamos en Aprender, le decimos que NO reproduzca, pero NO desmontamos el componente
   const effectivePlaying = isLearnPage ? false : isPlaying;
 
   return (
@@ -121,6 +120,7 @@ export default function GlobalPlayer() {
         shouldBeVisible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-20 pointer-events-none h-0"
       }`}
     >
+      {/* Barra Superior */}
       <div className="bg-gray-900/95 backdrop-blur text-white p-3 flex justify-between items-center border-b border-gray-800">
         <div className="flex flex-col overflow-hidden mr-4">
           <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest truncate">
@@ -133,6 +133,7 @@ export default function GlobalPlayer() {
         <button onClick={closeVideo} className="p-2 bg-gray-800 rounded-full hover:bg-red-900/50 text-gray-400 hover:text-white transition-colors">✕</button>
       </div>
 
+      {/* Reproductor */}
       <div className="relative pt-[56.25%] bg-black">
         <ReactPlayer
           ref={playerRef}
@@ -150,7 +151,6 @@ export default function GlobalPlayer() {
              if (shouldBeVisible && isPlaying) togglePlay();
           }}
           
-          // Actualizamos la duración solo si es válida
           onDuration={(d: number) => {
               if (Number.isFinite(d) && d > 0) setDuration(d);
           }}
