@@ -1,83 +1,97 @@
-import { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import EbookViewerClient from "@/components/EbookViewerClient";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 
-// Esto fuerza a que la página sea dinámica para evitar errores de caché en Vercel
-export const dynamic = "force-dynamic";
+export default function DocumentoPage() {
+  const params = useParams();
+  const router = useRouter();
+  // Manejo seguro del ID para Next.js 15/16
+  const id = params?.id as string;
 
-type Props = {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-};
+  const [bookData, setBookData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-// Generar metadatos para que el título de la pestaña sea el del libro
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params;
-  
-  try {
-    const docRef = doc(db, "documents", id);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      const data = snap.data();
-      return { title: `${data.title} | Sala de Estudio` };
-    }
-  } catch (e) {
-    console.error("Error fetching metadata", e);
-  }
-  return { title: "Lectura | Sala de Estudio" };
-}
+  useEffect(() => {
+    if (!id) return;
 
-export default async function DocumentoPage({ params }: Props) {
-  const { id } = await params;
-  
-  // 1. Obtener datos del libro desde Firebase (lado del servidor)
-  let bookData = null;
-  try {
-    const docRef = doc(db, "documents", id);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      bookData = { id: snap.id, ...snap.data() } as any;
-    }
-  } catch (error) {
-    console.error("Error cargando libro:", error);
-  }
+    const fetchBook = async () => {
+      try {
+        const docRef = doc(db, "documents", id);
+        const snap = await getDoc(docRef);
+        
+        if (snap.exists()) {
+          setBookData({ id: snap.id, ...snap.data() });
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error("Error cargando libro:", err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // 2. Si no existe el libro, mostramos error elegante
-  if (!bookData) {
+    fetchBook();
+  }, [id]);
+
+  // Pantalla de Carga (Spinner elegante)
+  if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#fcfaf7] text-center p-6">
-        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 text-2xl">
-          📚
+      <div className="min-h-screen bg-[#fcfaf7] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+           <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin"></div>
+           <p className="text-[10px] font-bold uppercase tracking-widest text-amber-800 animate-pulse">Abriendo libro...</p>
         </div>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Libro no encontrado</h1>
-        <p className="text-sm text-gray-500 mb-6">El documento que buscas no está disponible.</p>
-        <a href="/biblioteca" className="px-6 py-3 bg-black text-white rounded-full text-xs font-bold uppercase tracking-widest">
-          Volver a la Biblioteca
-        </a>
       </div>
     );
   }
 
-  // 3. Renderizar el Visor Cliente (El "Súper Pro")
-  // Pasamos la URL y el ID para que el cliente maneje la lectura
+  // Pantalla de Error (Si el libro no existe o no tiene permiso)
+  if (error || !bookData) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#fcfaf7] text-center p-6 animate-in fade-in zoom-in duration-500">
+        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
+          <span className="text-3xl grayscale opacity-50">📚</span>
+        </div>
+        <h1 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Libro no disponible</h1>
+        <p className="text-sm text-gray-500 mb-8 max-w-md mx-auto leading-relaxed">
+          No pudimos cargar este documento. Puede que haya sido eliminado o que no tengas permisos para verlo.
+        </p>
+        <button 
+          onClick={() => router.push('/biblioteca')}
+          className="px-8 py-4 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-[0.25em] hover:bg-amber-600 transition-all shadow-xl hover:-translate-y-1"
+        >
+          Volver a la Biblioteca
+        </button>
+      </div>
+    );
+  }
+
+  // Visor Súper Pro
   return (
-    <main className="min-h-screen bg-[#fcfaf7] text-gray-900 overflow-hidden relative">
-      {/* Botón flotante para salir (por seguridad si la UI falla) */}
-      <a 
+    <main className="h-screen w-full bg-[#fcfaf7] overflow-hidden relative">
+      {/* Botón flotante para salir */}
+      <Link 
         href="/biblioteca" 
-        className="fixed top-4 left-4 z-[100] w-10 h-10 bg-white/50 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center text-gray-600 hover:bg-white hover:text-black transition-all shadow-sm group"
-        title="Salir"
+        className="fixed top-4 left-4 z-[50] w-10 h-10 bg-white/10 backdrop-blur-md border border-black/5 rounded-full flex items-center justify-center text-gray-600 hover:bg-white hover:text-red-500 transition-all shadow-sm group"
+        title="Salir de la lectura"
       >
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
-      </a>
+      </Link>
 
-      {/* Aquí cargamos el componente PRO que hicimos hace un momento */}
-      <div className="w-full h-screen p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+      {/* Cargamos el componente PRO que ya diseñamos */}
+      <div className="w-full h-full flex items-center justify-center p-0 sm:p-4 md:p-6 bg-[#fcfaf7] dark:bg-[#1a1a1a] transition-colors duration-500">
         <EbookViewerClient 
-          fileUrl={bookData.url} 
+          fileUrl={bookData.url || bookData.coverUrl} // Intenta url del PDF, o fallback
           documentId={bookData.id} 
         />
       </div>
