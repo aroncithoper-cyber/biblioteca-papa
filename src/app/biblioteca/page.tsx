@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   where,
   deleteDoc,
-  doc, // Esta es la herramienta de Firebase (NO BORRAR)
+  doc, 
   setDoc
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -18,6 +18,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation"; 
 import Header from "@/components/Header";
 import Link from "next/link";
+// Importamos el modal de instalación
+import InstallGuideModal from "@/components/InstallGuideModal";
 
 type DocItem = {
   id: string;
@@ -28,7 +30,7 @@ type DocItem = {
   createdAt?: any;
 };
 
-// --- FUNCIÓN AUXILIAR PARA DETECTAR EL NÚMERO EN EL TÍTULO ---
+// Función auxiliar
 const getBookNumber = (title: string) => {
   if (!title) return Infinity;
   const match = title.match(/(?:numero|número|num|no\.?|vol\.?)\s*(\d+)/i);
@@ -42,8 +44,11 @@ export default function BibliotecaPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [requestedBookIds, setRequestedBookIds] = useState<string[]>([]);
-  const [savedBookIds, setSavedBookIds] = useState<string[]>([]); // Estado para favoritos
+  const [savedBookIds, setSavedBookIds] = useState<string[]>([]); 
   
+  // ESTADO PARA EL MODAL DE INSTALACIÓN
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -63,11 +68,11 @@ export default function BibliotecaPage() {
           console.error("Error cargando solicitudes", e);
         }
 
-        // 2. Cargar Favoritos (Mi Estante)
+        // 2. Cargar Favoritos
         try {
           const qFav = query(collection(db, "user_favorites"), where("userId", "==", user.uid), where("type", "==", "book"));
           const snapFav = await getDocs(qFav);
-          const favIds = snapFav.docs.map((d) => d.data().contentId); // Usamos contentId para identificar
+          const favIds = snapFav.docs.map((d) => d.data().contentId);
           setSavedBookIds(favIds);
         } catch (e) {
             console.error("Error cargando favoritos", e);
@@ -79,7 +84,7 @@ export default function BibliotecaPage() {
       }
     });
 
-    // CARGA Y ORDENAMIENTO DE DOCUMENTOS
+    // CARGA DE LIBROS
     (async () => {
       try {
         const q = query(collection(db, "documents"), orderBy("createdAt", "desc"));
@@ -110,14 +115,10 @@ export default function BibliotecaPage() {
     return () => unsub();
   }, [router]);
 
-  // --- FUNCIÓN TOGGLE FAVORITE CORREGIDA ---
-  // Cambiamos el nombre del argumento de 'doc' a 'item' para evitar conflictos
   const toggleFavorite = async (item: DocItem) => {
     if (!userId) return alert("Inicia sesión para guardar en tu estante.");
-
     const isSaved = savedBookIds.includes(item.id);
     
-    // Optimistic UI Update
     if (isSaved) {
         setSavedBookIds(prev => prev.filter(id => id !== item.id));
     } else {
@@ -126,15 +127,12 @@ export default function BibliotecaPage() {
 
     try {
         if (isSaved) {
-            // Borrar de favoritos
             const q = query(collection(db, "user_favorites"), where("userId", "==", userId), where("contentId", "==", item.id));
             const snap = await getDocs(q);
             snap.forEach(async (d) => {
-                // AQUÍ ESTABA EL ERROR: Ahora 'doc' se refiere correctamente a la función de Firebase
                 await deleteDoc(doc(db, "user_favorites", d.id));
             });
         } else {
-            // Agregar a favoritos
             await addDoc(collection(db, "user_favorites"), {
                 userId,
                 contentId: item.id,
@@ -145,28 +143,32 @@ export default function BibliotecaPage() {
             });
         }
     } catch (error) {
-        console.error("Error guardando favorito", error);
-        // Revertir si falla
         if (isSaved) setSavedBookIds(prev => [...prev, item.id]);
         else setSavedBookIds(prev => prev.filter(id => id !== item.id));
     }
   };
 
-  const term = searchTerm.toLowerCase();
+  // Función Notificaciones
+  const handleEnableNotifications = async () => {
+    if (!("Notification" in window)) return;
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      alert("✅ ¡Avisos Activados!\nTe notificaremos cuando haya nuevos libros.");
+    } else {
+      alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
+    }
+  };
 
-  const filteredPrivate = docs.filter(
-    (d) => !d.isPublic && (d.title || "").toLowerCase().includes(term)
-  );
-  const filteredPublic = docs.filter(
-    (d) => d.isPublic && (d.title || "").toLowerCase().includes(term)
-  );
+  const term = searchTerm.toLowerCase();
+  const filteredPrivate = docs.filter((d) => !d.isPublic && (d.title || "").toLowerCase().includes(term));
+  const filteredPublic = docs.filter((d) => d.isPublic && (d.title || "").toLowerCase().includes(term));
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
 
-      {/* ENCABEZADO */}
-      <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-16 sm:pb-20 text-center animate-in">
+      {/* --- ENCABEZADO CON BOTONES --- */}
+      <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-8 sm:pb-12 text-center animate-in">
         <div className="flex justify-center items-center gap-6 mb-8 sm:mb-10">
           <div className="h-px w-12 sm:w-16 bg-gradient-to-r from-transparent to-amber-200"></div>
           <img src="/icon-512.png" className="w-12 h-12 sm:w-14 sm:h-14 grayscale opacity-40" alt="Logo" />
@@ -175,13 +177,30 @@ export default function BibliotecaPage() {
         <h1 className="text-4xl sm:text-5xl md:text-8xl font-bold text-gray-900 mb-6 tracking-tighter leading-none">
           Sala de Estudio
         </h1>
-        <p className="text-base sm:text-xl md:text-2xl text-amber-900/50 font-medium italic mb-8 sm:mb-12 max-w-2xl mx-auto">
+        <p className="text-base sm:text-xl md:text-2xl text-amber-900/50 font-medium italic mb-8 max-w-2xl mx-auto">
           Obra literaria y espiritual de Jose Enrique Perez Leon
         </p>
+
+        {/* --- BOTONES DE ACCIÓN (INSTALAR + AVISOS) --- */}
+        <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+            <button 
+              onClick={() => setShowInstallModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-md border border-amber-200 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-amber-800 shadow-sm hover:bg-amber-50 hover:scale-105 transition-all"
+            >
+              <span className="text-lg">📲</span> Instalar App
+            </button>
+            
+            <button 
+              onClick={handleEnableNotifications}
+              className="flex items-center gap-2 px-5 py-2.5 bg-black/5 backdrop-blur-md border border-gray-200 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-gray-700 shadow-sm hover:bg-black hover:text-white hover:scale-105 transition-all"
+            >
+              <span className="text-lg">🔔</span> Activar Avisos
+            </button>
+        </div>
       </section>
 
       {/* BUSCADOR */}
-      <section className="max-w-6xl mx-auto px-6 py-8 sm:py-12 sticky top-4 z-40">
+      <section className="max-w-6xl mx-auto px-6 pb-12 sticky top-4 z-40">
         <div className="relative max-w-xl mx-auto">
           <div className="relative backdrop-blur-xl bg-white/60 p-2 rounded-full border border-white shadow-2xl">
             <input
@@ -212,7 +231,7 @@ export default function BibliotecaPage() {
             {filteredPrivate.map((d, index) => {
               const hasAccess = d.authorizedEmails?.includes(userEmail || "");
               const alreadyRequested = requestedBookIds.includes(d.id);
-              const isSaved = savedBookIds.includes(d.id); // ¿Está guardado?
+              const isSaved = savedBookIds.includes(d.id);
               
               return (
                 <BookCard
@@ -242,19 +261,19 @@ export default function BibliotecaPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-24 sm:gap-y-32 gap-x-12 sm:gap-x-16">
             {filteredPublic.map((d, index) => {
-                 const isSaved = savedBookIds.includes(d.id);
-                 return (
-                  <BookCard
-                    key={d.id}
-                    doc={d}
-                    index={index}
-                    hasAccess={true}
-                    alreadyRequested={false}
-                    userEmail={userEmail}
-                    isSaved={isSaved}
-                    onToggleFavorite={() => toggleFavorite(d)}
-                  />
-                 )
+                  const isSaved = savedBookIds.includes(d.id);
+                  return (
+                   <BookCard
+                     key={d.id}
+                     doc={d}
+                     index={index}
+                     hasAccess={true}
+                     alreadyRequested={false}
+                     userEmail={userEmail}
+                     isSaved={isSaved}
+                     onToggleFavorite={() => toggleFavorite(d)}
+                   />
+                  )
             })}
           </div>
         </section>
@@ -266,11 +285,17 @@ export default function BibliotecaPage() {
         <p className="text-[11px] sm:text-[12px] uppercase tracking-[0.8em] text-gray-400 font-bold mb-6 sm:mb-8">Jose Enrique Perez Leon</p>
         <p className="text-[9px] sm:text-[10px] text-gray-300 italic">Protección de derechos RV1909</p>
       </footer>
+
+      {/* MODAL DE INSTALACIÓN */}
+      <InstallGuideModal 
+        isOpen={showInstallModal} 
+        onClose={() => setShowInstallModal(false)} 
+      />
     </main>
   );
 }
 
-/* BOOK CARD */
+// COMPONENTE TARJETA DE LIBRO
 function BookCard({
   doc,
   index,
@@ -317,20 +342,16 @@ function BookCard({
   };
 
   return (
-    <div
-      className="group flex flex-col items-center animate-in"
-      style={{ animationDelay: `${index * 100}ms` }}
-    >
+    <div className="group flex flex-col items-center animate-in" style={{ animationDelay: `${index * 100}ms` }}>
       <div className={`relative w-56 sm:w-64 h-72 sm:h-80 transition-all duration-1000 ${hasAccess ? "group-hover:-translate-y-6 group-hover:rotate-3 group-hover:scale-105" : "opacity-80"}`}>
         
-        {/* BOTÓN FAVORITO (FLOTANTE) */}
+        {/* BOTÓN FAVORITO */}
         {userEmail && (
             <button
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
                 className={`absolute -right-4 -top-4 z-40 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-90 ${
                     isSaved ? "bg-amber-500 text-white" : "bg-white text-gray-300 hover:text-amber-500"
                 }`}
-                title={isSaved ? "Quitar de Mi Estante" : "Guardar en Mi Estante"}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} className="w-5 h-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
@@ -340,9 +361,7 @@ function BookCard({
 
         {!hasAccess && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] rounded-r-2xl">
-            <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 border border-white/20">
-              <span className="text-2xl text-white">🔒</span>
-            </div>
+            <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 border border-white/20"><span className="text-2xl text-white">🔒</span></div>
             <span className="text-[8px] font-black text-white uppercase tracking-[0.4em]">Contenido Protegido</span>
           </div>
         )}
@@ -369,7 +388,7 @@ function BookCard({
         ) : localRequested ? (
           <div className="w-full py-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col items-center justify-center gap-1">
               <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Solicitud Enviada</span>
-              <span className="text-[8px] text-amber-600/70 font-bold">Espera activación o envía ficha</span>
+              <span className="text-[8px] text-amber-600/70 font-bold">Espera activación</span>
           </div>
         ) : (
           <button onClick={() => setShowModal(true)} className="w-full py-4 sm:py-5 bg-white text-amber-600 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] rounded-full border-2 border-amber-100 hover:bg-amber-50 transition-all shadow-lg">
@@ -383,16 +402,10 @@ function BookCard({
           <div className="bg-white rounded-[2.5rem] p-8 sm:p-10 max-w-sm w-full shadow-2xl">
             <form onSubmit={handleRequest} className="space-y-5">
               <h3 className="text-center font-bold text-gray-900">Solicitar Volumen</h3>
-              <div className="bg-blue-50 p-4 rounded-xl">
-                <p className="text-[10px] text-blue-800 font-bold uppercase tracking-widest text-center mb-1">Instrucciones</p>
-                <p className="text-[10px] text-blue-600 text-center leading-relaxed">Para acelerar tu acceso, proporciona tu WhatsApp. Si requiere pago, envía tu comprobante al administrador.</p>
-              </div>
-              
               <div className="space-y-2">
                 <label className="text-[9px] font-bold uppercase text-gray-400 pl-2">Tu WhatsApp</label>
                 <input required type="tel" placeholder="Ej: 55 1234 5678" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-[#fcfaf7] border border-amber-100 rounded-2xl px-5 py-3 text-sm outline-none focus:border-black transition-colors" />
               </div>
-
               <button type="submit" disabled={sending || !userEmail} className="w-full py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-[0.4em] hover:bg-green-600 transition-colors">
                 {sending ? "Enviando..." : "Enviar Solicitud"}
               </button>
