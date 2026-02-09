@@ -7,6 +7,11 @@ import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import FlipbookViewer from "@/components/FlipbookViewer";
 
+// --- AQUÍ ESTÁ LA SOLUCIÓN AL ERROR DEL PDF ---
+import { pdfjs } from 'react-pdf';
+// Le decimos a la app dónde encontrar el "cerebro" para leer los PDFs
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 export default function DocumentoPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();

@@ -5,14 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
-// Importación dinámica "Nuclear" (Para pasar el build de Vercel)
+// Importación dinámica "Nuclear"
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
-  
-  // Referencia
   const playerRef = useRef<any>(null);
   
   // Estados
@@ -21,37 +19,42 @@ export default function GlobalPlayer() {
   const [playedSeconds, setPlayedSeconds] = useState(0);
   const [wasPlayingBeforeLearn, setWasPlayingBeforeLearn] = useState(false);
 
+  // Detectar si estamos en la página "Aprender"
+  const isLearnPage = pathname === "/aprender";
+
   // Protección de montaje
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // --- LÓGICA DE REANUDACIÓN INTELIGENTE ---
+  // --- LÓGICA DE REANUDACIÓN ---
   useEffect(() => {
-    if (pathname === "/aprender") {
-      // Si entramos a aprender, guardamos si estaba sonando y pausamos
+    if (isLearnPage) {
+      // Entrando a aprender: Si suena, guardamos estado y pausamos
       if (isPlaying) {
         setWasPlayingBeforeLearn(true);
-        togglePlay(); // Pausa
+        // Usamos un timeout para asegurar que no choque con otros eventos
+        setTimeout(() => {
+             if(isPlaying) togglePlay(); 
+        }, 100);
       }
     } else {
-      // Si salimos de aprender y estaba sonando antes, intentamos reanudar
+      // Saliendo de aprender: Si estaba sonando, intentamos reanudar
       if (wasPlayingBeforeLearn) {
         setWasPlayingBeforeLearn(false);
-        // Pequeño delay para dejar que el componente se monte
         setTimeout(() => {
+            // Intentamos reproducir, pero si falla, no pasa nada
             if (!isPlaying) togglePlay();
-        }, 500);
+        }, 800); // Le damos casi 1 segundo para que la página cargue bien
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [isLearnPage]); // Dependemos solo de si es página de aprender o no
 
-
-  // --- MEDIA SESSION (Optimizado: Solo se ejecuta al cambiar de canción) ---
+  // --- MEDIA SESSION ---
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    if (!isMounted || !currentVideo || pathname === "/aprender") return;
+    if (!isMounted || !currentVideo || isLearnPage) return;
 
     if (typeof window !== "undefined" && "mediaSession" in navigator) {
       try {
@@ -62,14 +65,9 @@ export default function GlobalPlayer() {
           artwork: [{ src: "/icon-512.png", sizes: "512x512", type: "image/png" }],
         });
 
-        navigator.mediaSession.setActionHandler("play", () => {
-             if(!isPlaying) togglePlay();
-        });
-        navigator.mediaSession.setActionHandler("pause", () => {
-             if(isPlaying) togglePlay();
-        });
+        navigator.mediaSession.setActionHandler("play", () => { if(!isPlaying) togglePlay(); });
+        navigator.mediaSession.setActionHandler("pause", () => { if(isPlaying) togglePlay(); });
         
-        // Handlers de tiempo usando referencia (sin reiniciar el efecto)
         navigator.mediaSession.setActionHandler("previoustrack", () => {
           playerRef.current?.seekTo(playerRef.current.getCurrentTime() - 10, 'seconds');
         });
@@ -79,13 +77,12 @@ export default function GlobalPlayer() {
 
       } catch (e) { /* Ignorar */ }
     }
-    // NOTA: Quitamos 'playedSeconds' de las dependencias para evitar el loop infinito
-  }, [currentVideo, isMounted, pathname, isPlaying, togglePlay]);
+  }, [currentVideo, isPlaying, togglePlay, isMounted, isLearnPage]);
 
   // --- PROGRESO ---
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
-    if (pathname !== "/aprender" && typeof navigator !== "undefined" && "mediaSession" in navigator && duration > 0) {
+    if (!isLearnPage && typeof navigator !== "undefined" && "mediaSession" in navigator && duration > 0) {
       try {
         navigator.mediaSession.setPositionState({
           duration: duration,
@@ -96,13 +93,11 @@ export default function GlobalPlayer() {
     }
   };
 
-  // --- RENDERIZADO ---
   if (!isMounted) return null;
   if (!currentVideo) return null;
-  
-  // Ocultamos visualmente en "/aprender" en lugar de destruir el componente
-  // Esto mantiene el video "listo" para sonar en cuanto salgas.
-  const isHidden = pathname === "/aprender";
+
+  // Lógica CSS para ocultar
+  const isHidden = isLearnPage;
 
   return (
     <div 
@@ -110,20 +105,14 @@ export default function GlobalPlayer() {
         isHidden ? "hidden pointer-events-none" : "block"
       }`}
     >
-      {/* Barra Superior */}
       <div className="bg-gray-900/95 backdrop-blur text-white p-3 flex justify-between items-center border-b border-gray-800">
         <div className="flex flex-col overflow-hidden mr-4">
-          <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest truncate">
-            Reproduciendo ahora
-          </span>
-          <span className="text-xs font-medium truncate text-gray-200">
-            {currentVideo.title}
-          </span>
+          <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest truncate">Reproduciendo ahora</span>
+          <span className="text-xs font-medium truncate text-gray-200">{currentVideo.title}</span>
         </div>
         <button onClick={closeVideo} className="p-2 bg-gray-800 rounded-full hover:bg-red-900/50 text-gray-400 hover:text-white transition-colors">✕</button>
       </div>
 
-      {/* Reproductor */}
       <div className="relative pt-[56.25%] bg-black">
         <ReactPlayer
           ref={playerRef}
@@ -131,14 +120,16 @@ export default function GlobalPlayer() {
           width="100%"
           height="100%"
           className="absolute top-0 left-0"
-          playing={isPlaying && !isHidden} // Se pausa automáticamente si está oculto
+          playing={isPlaying && !isHidden} // Force pause si está oculto
           controls={true}
           
           onPlay={() => {
-             if (!isPlaying && !isHidden) togglePlay();
+             // Solo actualizamos el estado si es una acción del usuario real
+             if (!isHidden && !isPlaying) togglePlay();
           }}
           onPause={() => {
-             if (isPlaying && !isHidden) togglePlay();
+             // Solo actualizamos el estado si es una acción del usuario real
+             if (!isHidden && isPlaying) togglePlay();
           }}
           
           onDuration={(d: number) => setDuration(d)}
@@ -146,11 +137,7 @@ export default function GlobalPlayer() {
           
           config={{
             youtube: {
-              playerVars: { 
-                playsinline: 1, 
-                modestbranding: 1, 
-                origin: typeof window !== "undefined" ? window.location.origin : undefined 
-              }
+              playerVars: { playsinline: 1, modestbranding: 1, origin: typeof window !== "undefined" ? window.location.origin : undefined }
             } as any
           }}
         />
