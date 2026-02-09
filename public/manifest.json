@@ -1,21 +1,35 @@
 {
   "name": "Consejero del Obrero",
   "short_name": "Consejero",
-  "description": "Biblioteca digital de la obra de Jose Enrique Perez Leon",
+  "description": "Biblioteca digital y legado de José Enrique Pérez León",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fcfaf7",
-  "theme_color": "#000000",
+  "theme_color": "#d97706",
+  "orientation": "any",
+  "categories": ["books", "education", "lifestyle"],
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Abrir Biblioteca",
+      "short_name": "Libros",
+      "description": "Ver todos los libros disponibles",
+      "url": "/biblioteca",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

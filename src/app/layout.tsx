@@ -1,8 +1,9 @@
 import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
 import { Metadata, Viewport } from "next";
-import { PlayerProvider } from "@/lib/PlayerContext"; // <--- Importamos el cerebro
+import { PlayerProvider } from "@/lib/PlayerContext"; // <--- Importamos el cerebro del audio
 import GlobalPlayer from "@/components/GlobalPlayer"; // <--- Importamos el reproductor flotante
+import NotificationManager from "@/components/NotificationManager"; // <--- Importamos el sistema de notificaciones
 
 export const metadata: Metadata = {
   title: "Consejero del Obrero | Legado Digital",
@@ -56,6 +57,9 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="antialiased bg-[#fcfaf7]">
+        {/* 🔔 Sistema de Notificaciones Inteligente (Carga silenciosa) */}
+        <NotificationManager />
+
         {/* Envolvemos todo en el Proveedor del Reproductor */}
         <PlayerProvider>
           <AuthGuard>
@@ -65,6 +69,7 @@ export default function RootLayout({
           </AuthGuard>
         </PlayerProvider>
 
+        {/* Registro del Service Worker para Modo Offline */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
