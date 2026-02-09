@@ -10,24 +10,23 @@ export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
   
-  // Usamos <any> para evitar peleas con TypeScript sobre el tipo del player
+  // 1. BLINDAJE: Usamos <any> en la referencia
   const playerRef = useRef<any>(null);
 
   // Estados para controlar el tiempo real
   const [duration, setDuration] = useState(0);
   const [playedSeconds, setPlayedSeconds] = useState(0);
 
-  // 1. Si no hay video, no renderizamos nada
+  // Si no hay video, no renderizamos nada
   if (!currentVideo) return null;
 
-  // 2. Si estamos en "Aprender", ocultamos este player para evitar doble audio
+  // Si estamos en "Aprender", ocultamos este player
   if (pathname === "/aprender") return null;
 
-  // --- LÓGICA TIPO SPOTIFY (Media Session API) ---
+  // --- LÓGICA TIPO SPOTIFY ---
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if ("mediaSession" in navigator && currentVideo) {
-      // A. Ponemos los datos en la pantalla de bloqueo
       navigator.mediaSession.metadata = new MediaMetadata({
         title: currentVideo.title,
         artist: "Consejero del Obrero",
@@ -37,7 +36,6 @@ export default function GlobalPlayer() {
         ],
       });
 
-      // B. Escuchamos los botones de los audífonos/reloj
       navigator.mediaSession.setActionHandler("play", () => {
         if (!isPlaying) togglePlay();
       });
@@ -54,7 +52,8 @@ export default function GlobalPlayer() {
   }, [currentVideo, isPlaying, togglePlay, playedSeconds]);
 
   // --- SINCRONIZACIÓN DE TIEMPO ---
-  const handleProgress = (state: { playedSeconds: number }) => {
+  // 2. BLINDAJE: Usamos (state: any) para que TypeScript no confunda el evento
+  const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
 
     if ("mediaSession" in navigator && duration > 0) {
@@ -65,14 +64,14 @@ export default function GlobalPlayer() {
           position: state.playedSeconds,
         });
       } catch (error) {
-        // Ignoramos errores menores
+        // Ignorar
       }
     }
   };
 
   return (
     <div className="fixed z-[100] bottom-4 right-4 w-[90%] md:w-80 rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black transition-all duration-500 animate-in slide-in-from-bottom-5">
-      {/* Barra de control Visual */}
+      {/* Barra Visual */}
       <div className="bg-gray-900/95 backdrop-blur text-white p-3 flex justify-between items-center border-b border-gray-800">
         <div className="flex flex-col overflow-hidden mr-4">
           <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest truncate">
@@ -99,7 +98,7 @@ export default function GlobalPlayer() {
           height="100%"
           className="absolute top-0 left-0"
           playing={isPlaying}
-          controls={true} 
+          controls={true}
           
           onPlay={() => {
             if (!isPlaying) togglePlay();
@@ -110,9 +109,10 @@ export default function GlobalPlayer() {
             if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
           }}
           
-          // AQUÍ ESTABA EL ERROR: Le agregamos ": number" para que sepa qué es
+          // 3. BLINDAJE: Tipo explícito para duración
           onDuration={(d: number) => setDuration(d)}
           
+          // Aquí usamos la función blindada
           onProgress={handleProgress}
           
           config={{
