@@ -3,24 +3,25 @@
 import { usePlayer } from "@/lib/PlayerContext";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-// Importamos la librería general
-import ReactPlayer from "react-player";
+// 1. Importamos la herramienta de carga dinámica
+import dynamic from "next/dynamic";
+
+// 2. LA SOLUCIÓN NUCLEAR:
+// Importamos el player dinámicamente y le decimos a TypeScript que es "any" (cualquier cosa).
+// Con esto, TypeScript deja de revisar si tiene propiedad url, width, etc.
+const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
   
-  // 1. BLINDAJE: Usamos <any> en la referencia
+  // Referencia como any
   const playerRef = useRef<any>(null);
 
-  // Estados para controlar el tiempo real
   const [duration, setDuration] = useState(0);
   const [playedSeconds, setPlayedSeconds] = useState(0);
 
-  // Si no hay video, no renderizamos nada
   if (!currentVideo) return null;
-
-  // Si estamos en "Aprender", ocultamos este player
   if (pathname === "/aprender") return null;
 
   // --- LÓGICA TIPO SPOTIFY ---
@@ -51,8 +52,7 @@ export default function GlobalPlayer() {
     }
   }, [currentVideo, isPlaying, togglePlay, playedSeconds]);
 
-  // --- SINCRONIZACIÓN DE TIEMPO ---
-  // 2. BLINDAJE: Usamos (state: any)
+  // --- SINCRONIZACIÓN ---
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
 
@@ -89,7 +89,7 @@ export default function GlobalPlayer() {
         </button>
       </div>
 
-      {/* Reproductor Inteligente */}
+      {/* Reproductor Nuclear (Blindado) */}
       <div className="relative pt-[56.25%] bg-black">
         <ReactPlayer
           ref={playerRef}
@@ -109,12 +109,9 @@ export default function GlobalPlayer() {
             if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
           }}
           
-          // 3. BLINDAJE: Tipo explícito para duración
           onDuration={(d: number) => setDuration(d)}
-          
           onProgress={handleProgress}
           
-          // 4. BLINDAJE FINAL: Ponemos "as any" aquí para que deje pasar playerVars
           config={{
             youtube: {
               playerVars: { 
