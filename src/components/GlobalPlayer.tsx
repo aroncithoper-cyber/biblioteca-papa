@@ -3,8 +3,10 @@
 import { usePlayer } from "@/lib/PlayerContext";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-// Usamos la importación estándar que es más estable
-import ReactPlayer from "react-player";
+import dynamic from "next/dynamic";
+
+// Importación dinámica "Nuclear" (Para pasar el build de Vercel)
+const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
@@ -18,7 +20,7 @@ export default function GlobalPlayer() {
   const [duration, setDuration] = useState(0);
   const [playedSeconds, setPlayedSeconds] = useState(0);
 
-  // Detectamos si estamos en la zona prohibida (Aprender)
+  // Detectamos si estamos en la página "Aprender"
   const isLearnPage = pathname === "/aprender";
 
   // Montaje seguro
@@ -27,14 +29,12 @@ export default function GlobalPlayer() {
   }, []);
 
   // --- LOGICA DE REANUDACIÓN AUTOMÁTICA ---
-  // Cuando salimos de "Aprender", si el video estaba activo, intentamos darle play
   useEffect(() => {
     if (!isLearnPage && isMounted && currentVideo && isPlaying) {
-      // Pequeño empujón para asegurar que arranque
       const timeout = setTimeout(() => {
-         // Solo si sigue pausado visualmente
-         if (playerRef.current?.getInternalPlayer()?.getPlayerState() !== 1) {
-             // Forzamos actualización
+         // Verificamos si el player interno está listo
+         if (playerRef.current?.getInternalPlayer()) {
+             // Forzamos actualización visual si es necesario
          }
       }, 500);
       return () => clearTimeout(timeout);
@@ -45,7 +45,6 @@ export default function GlobalPlayer() {
   // --- MEDIA SESSION (Controles Pantalla Bloqueo) ---
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    // Si estamos en Aprender, NO tocamos la media session para no interferir con el otro video
     if (!isMounted || !currentVideo || isLearnPage) return;
 
     if (typeof window !== "undefined" && "mediaSession" in navigator) {
@@ -60,21 +59,44 @@ export default function GlobalPlayer() {
         navigator.mediaSession.setActionHandler("play", () => { if (!isPlaying) togglePlay(); });
         navigator.mediaSession.setActionHandler("pause", () => { if (isPlaying) togglePlay(); });
         
+        // CORRECCIÓN CLAVE: Usamos getCurrentTime() directo del player, no la variable de estado
         navigator.mediaSession.setActionHandler("previoustrack", () => {
-          playerRef.current?.seekTo(playedSeconds - 10, 'seconds');
+          if (playerRef.current) {
+            const actualTime = playerRef.current.getCurrentTime();
+            playerRef.current.seekTo(Math.max(actualTime - 10, 0), 'seconds');
+          }
         });
         navigator.mediaSession.setActionHandler("nexttrack", () => {
-          playerRef.current?.seekTo(playedSeconds + 10, 'seconds');
+          if (playerRef.current) {
+            const actualTime = playerRef.current.getCurrentTime();
+            playerRef.current.seekTo(actualTime + 10, 'seconds');
+          }
+        });
+        
+        // Soporte para la barra deslizante del celular
+        navigator.mediaSession.setActionHandler("seekto", (details) => {
+            if (playerRef.current && details.seekTime) {
+                playerRef.current.seekTo(details.seekTime, 'seconds');
+            }
         });
 
       } catch (e) { /* Ignorar */ }
     }
-  }, [currentVideo, isPlaying, togglePlay, playedSeconds, isMounted, isLearnPage]);
+  }, [currentVideo, isPlaying, togglePlay, isMounted, isLearnPage]); // Quitamos playedSeconds de aquí para evitar loops
 
-  // --- PROGRESO ---
+  // --- PROGRESO (AQUÍ ESTABA EL ERROR DE LA BARRA LOCA) ---
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
-    if (!isLearnPage && typeof navigator !== "undefined" && "mediaSession" in navigator && duration > 0) {
+    
+    // VALIDACIÓN ESTRICTA: Solo actualizamos el celular si la duración es un número real y mayor a 0
+    // Esto evita que la barra salte al final cuando el video está cargando.
+    if (
+        !isLearnPage && 
+        typeof navigator !== "undefined" && 
+        "mediaSession" in navigator && 
+        duration > 0 && 
+        Number.isFinite(duration)
+    ) {
       try {
         navigator.mediaSession.setPositionState({
           duration: duration,
@@ -85,17 +107,12 @@ export default function GlobalPlayer() {
     }
   };
 
-  // --- RENDERIZADO (EL SECRETO) ---
+  // --- RENDERIZADO ---
   if (!isMounted) return null;
-  // Si no hay video cargado, ahí sí lo desmontamos para no estorbar
   if (!currentVideo) return null;
 
-  // Si estamos en "Aprender":
-  // 1. NO desmontamos el componente (return null).
-  // 2. Lo ocultamos con CSS (hidden).
-  // 3. Forzamos la propiedad playing={false} para que se calle.
-  
   const shouldBeVisible = !isLearnPage;
+  // Truco: Si estamos en Aprender, le decimos que NO reproduzca, pero NO desmontamos el componente
   const effectivePlaying = isLearnPage ? false : isPlaying;
 
   return (
@@ -104,7 +121,6 @@ export default function GlobalPlayer() {
         shouldBeVisible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-20 pointer-events-none h-0"
       }`}
     >
-      {/* Barra Superior */}
       <div className="bg-gray-900/95 backdrop-blur text-white p-3 flex justify-between items-center border-b border-gray-800">
         <div className="flex flex-col overflow-hidden mr-4">
           <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest truncate">
@@ -117,7 +133,6 @@ export default function GlobalPlayer() {
         <button onClick={closeVideo} className="p-2 bg-gray-800 rounded-full hover:bg-red-900/50 text-gray-400 hover:text-white transition-colors">✕</button>
       </div>
 
-      {/* Reproductor */}
       <div className="relative pt-[56.25%] bg-black">
         <ReactPlayer
           ref={playerRef}
@@ -125,18 +140,21 @@ export default function GlobalPlayer() {
           width="100%"
           height="100%"
           className="absolute top-0 left-0"
-          playing={effectivePlaying} // Aquí está la magia: se pausa solo, pero sigue cargado
+          playing={effectivePlaying} 
           controls={true}
           
           onPlay={() => {
-             // Si el usuario le da play manualmente y no estamos en aprender, actualizamos estado
              if (shouldBeVisible && !isPlaying) togglePlay();
           }}
           onPause={() => {
              if (shouldBeVisible && isPlaying) togglePlay();
           }}
           
-          onDuration={(d: number) => setDuration(d)}
+          // Actualizamos la duración solo si es válida
+          onDuration={(d: number) => {
+              if (Number.isFinite(d) && d > 0) setDuration(d);
+          }}
+          
           onProgress={handleProgress}
           
           config={{
