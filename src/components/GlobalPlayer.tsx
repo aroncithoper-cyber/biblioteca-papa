@@ -4,7 +4,7 @@ import { usePlayer } from "@/lib/PlayerContext";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 // Importamos el reproductor inteligente
-import ReactPlayer from "react-player/youtube";
+import ReactPlayer from "react-player";
 
 export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
