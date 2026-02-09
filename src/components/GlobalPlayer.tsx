@@ -3,15 +3,15 @@
 import { usePlayer } from "@/lib/PlayerContext";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-// 1. Usamos la versión "Lazy" que es más ligera y compatible con Next.js
-import ReactPlayer from "react-player/lazy";
+// 1. VOLVEMOS A LA IMPORTACIÓN QUE SÍ FUNCIONA EN VERCEL
+import ReactPlayer from "react-player";
 
 export default function GlobalPlayer() {
-  // --- HOOKS (Siempre primero) ---
+  // --- HOOKS (Siempre van al principio, sin ifs antes) ---
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
   
-  // Referencia al reproductor (Vital para que funcione el adelantar/atrasar)
+  // Usamos <any> para que TypeScript no moleste y nos deje usar .seekTo()
   const playerRef = useRef<any>(null);
   
   // Estados
@@ -19,15 +19,15 @@ export default function GlobalPlayer() {
   const [duration, setDuration] = useState(0);
   const [playedSeconds, setPlayedSeconds] = useState(0);
 
-  // 2. "Guardaespaldas" para evitar errores de hidratación (Pantalla roja)
+  // 2. PROTECCIÓN DE MONTAJE (Evita pantalla roja al cambiar de página)
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // --- LÓGICA MEDIA SESSION (Control pantalla bloqueo) ---
+  // 3. LOGICA MEDIA SESSION (Para controlar desde bloqueo)
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    // Solo ejecutamos si ya cargó la página y tenemos video
+    // Si no está montado o no hay video, no hacemos nada (pero el hook existe)
     if (!isMounted || !currentVideo || pathname === "/aprender") return;
     
     if (typeof window !== "undefined" && "mediaSession" in navigator) {
@@ -39,55 +39,51 @@ export default function GlobalPlayer() {
           artwork: [{ src: "/icon-512.png", sizes: "512x512", type: "image/png" }],
         });
 
-        // Conectamos los cables de los botones
+        // Controles básicos
         navigator.mediaSession.setActionHandler("play", () => togglePlay());
         navigator.mediaSession.setActionHandler("pause", () => togglePlay());
         
-        // AQUÍ ESTÁ EL ARREGLO DEL SEEK (Adelantar/Atrasar)
+        // AQUÍ ESTÁ EL SECRETO PARA ADELANTAR/ATRASAR
         navigator.mediaSession.setActionHandler("previoustrack", () => {
           if (playerRef.current) {
-            const newTime = Math.max(playedSeconds - 10, 0); // Evita números negativos
-            playerRef.current.seekTo(newTime, "seconds");
+            // Retroceder 10 segundos
+            playerRef.current.seekTo(playedSeconds - 10, 'seconds');
           }
         });
         navigator.mediaSession.setActionHandler("nexttrack", () => {
           if (playerRef.current) {
-            const newTime = Math.min(playedSeconds + 10, duration); // No pasarse del final
-            playerRef.current.seekTo(newTime, "seconds");
+            // Adelantar 10 segundos
+            playerRef.current.seekTo(playedSeconds + 10, 'seconds');
           }
         });
       } catch (e) {
-        console.warn("MediaSession error:", e);
+        // Ignoramos errores de media session
       }
     }
-  }, [currentVideo, isPlaying, togglePlay, playedSeconds, duration, isMounted, pathname]);
+  }, [currentVideo, isPlaying, togglePlay, playedSeconds, isMounted, pathname]);
 
-  // --- SINCRONIZACIÓN BARRA DE PROGRESO ---
+  // 4. SINCRONIZACIÓN BARRA DE PROGRESO
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
-
-    // Solo actualizamos el celular si la duración es válida (Evita que la barra salte al final)
-    if (typeof navigator !== "undefined" && "mediaSession" in navigator && duration > 0 && isFinite(duration)) {
+    if (typeof navigator !== "undefined" && "mediaSession" in navigator && duration > 0) {
       try {
         navigator.mediaSession.setPositionState({
           duration: duration,
           playbackRate: 1,
           position: state.playedSeconds,
         });
-      } catch (error) {
-        // Silencioso
-      }
+      } catch (error) { /* Ignorar */ }
     }
   };
 
-  // 3. RENDERIZADO CONDICIONAL (Para evitar crashes)
-  if (!isMounted) return null; // Esperamos a que el navegador esté listo
+  // 5. RENDERIZADO CONDICIONAL (Al final, para no romper hooks)
+  if (!isMounted) return null;
   if (!currentVideo) return null;
   if (pathname === "/aprender") return null;
 
   return (
     <div className="fixed z-[100] bottom-4 right-4 w-[90%] md:w-80 rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black transition-all duration-500 animate-in slide-in-from-bottom-5">
-      {/* Barra Superior Visual */}
+      {/* Barra Superior */}
       <div className="bg-gray-900/95 backdrop-blur text-white p-3 flex justify-between items-center border-b border-gray-800">
         <div className="flex flex-col overflow-hidden mr-4">
           <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest truncate">
@@ -109,9 +105,8 @@ export default function GlobalPlayer() {
           height="100%"
           className="absolute top-0 left-0"
           playing={isPlaying}
-          controls={true} // Controles nativos de YouTube (importante para móviles)
+          controls={true} // Controles nativos activados para móvil
           
-          // Eventos
           onPlay={() => {
              if (!isPlaying) togglePlay();
              if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
@@ -120,23 +115,18 @@ export default function GlobalPlayer() {
              if (isPlaying) togglePlay();
              if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
           }}
-          onEnded={() => {
-             // Opcional: Cerrar o pasar al siguiente
-          }}
           
-          // Sincronización de datos
           onDuration={(d: number) => setDuration(d)}
           onProgress={handleProgress}
           
-          // Configuración YouTube para móviles
           config={{
             youtube: {
               playerVars: { 
-                playsinline: 1, // Evita que se ponga en pantalla completa automática
+                playsinline: 1, 
                 modestbranding: 1, 
                 origin: typeof window !== "undefined" ? window.location.origin : undefined 
               }
-            }
+            } as any
           }}
         />
       </div>
