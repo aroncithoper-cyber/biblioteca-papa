@@ -10,6 +10,7 @@ export default function LandingPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showGuide, setShowGuide] = useState(false);
 
+  // Detectar si se puede instalar (Android/Chrome)
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
@@ -26,6 +27,18 @@ export default function LandingPage() {
     setInstallPrompt(null);
   };
 
+  // Función para pedir permiso de Notificaciones desde la Portada
+  const handleEnableNotifications = async () => {
+    if (!("Notification" in window)) return;
+    
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      alert("✅ ¡Avisos Activados!\nTe notificaremos cuando haya nuevos libros.");
+    } else {
+      alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200">
       <Header />
@@ -33,10 +46,10 @@ export default function LandingPage() {
       {/* VENTANA DE AYUDA PARA INSTALAR */}
       <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
-      {/* BOTONES FLOTANTES DE INSTALACIÓN */}
-      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
+      {/* --- BARRA FLOTANTE DE ACCIONES (APP BAR) --- */}
+      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
         
-        {/* Botón Android Automático */}
+        {/* 1. Botón Android Automático (Solo sale si se puede instalar directo) */}
         {installPrompt && (
           <button 
             onClick={handleInstallClick} 
@@ -47,10 +60,19 @@ export default function LandingPage() {
           </button>
         )}
 
-        {/* Botón de Ayuda (Visible siempre para iPhone/Dudas) */}
+        {/* 2. Botón de Notificaciones (NUEVO) */}
+        <button 
+            onClick={handleEnableNotifications}
+            className="flex items-center gap-2 px-4 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-black hover:text-white transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+        >
+            <span className="text-base">🔔</span>
+            <span className="hidden sm:inline">Avisos</span>
+        </button>
+
+        {/* 3. Botón de Ayuda (Visible siempre) */}
         <button 
           onClick={() => setShowGuide(true)} 
-          className="flex items-center gap-2 px-5 py-3 bg-white text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+          className="flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 pointer-events-auto"
         >
           <span className="text-base">❓</span>
           <span>¿Cómo instalar?</span>
