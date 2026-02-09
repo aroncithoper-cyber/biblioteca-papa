@@ -3,15 +3,20 @@
 import { usePlayer } from "@/lib/PlayerContext";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-// 1. VOLVEMOS A LA IMPORTACIÓN QUE SÍ FUNCIONA EN VERCEL
-import ReactPlayer from "react-player";
+import dynamic from "next/dynamic";
+
+// --- LA IMPORTACIÓN NUCLEAR ---
+// 1. Cargamos dinámicamente para evitar errores de servidor.
+// 2. Le ponemos "as any" al final. Esto obliga a TypeScript a aceptar CUALQUIER propiedad (url, width, etc.)
+//    sin marcar error de compilación.
+const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function GlobalPlayer() {
-  // --- HOOKS (Siempre van al principio, sin ifs antes) ---
+  // --- 1. HOOKS (Siempre arriba, sin interrupciones) ---
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
   
-  // Usamos <any> para que TypeScript no moleste y nos deje usar .seekTo()
+  // Referencia 'any' para tener control total
   const playerRef = useRef<any>(null);
   
   // Estados
@@ -19,17 +24,17 @@ export default function GlobalPlayer() {
   const [duration, setDuration] = useState(0);
   const [playedSeconds, setPlayedSeconds] = useState(0);
 
-  // 2. PROTECCIÓN DE MONTAJE (Evita pantalla roja al cambiar de página)
+  // Protección de montaje
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // 3. LOGICA MEDIA SESSION (Para controlar desde bloqueo)
+  // --- 2. MEDIA SESSION (Control de Bloqueo) ---
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    // Si no está montado o no hay video, no hacemos nada (pero el hook existe)
+    // Validamos condiciones dentro del hook, no antes
     if (!isMounted || !currentVideo || pathname === "/aprender") return;
-    
+
     if (typeof window !== "undefined" && "mediaSession" in navigator) {
       try {
         navigator.mediaSession.metadata = new MediaMetadata({
@@ -43,26 +48,25 @@ export default function GlobalPlayer() {
         navigator.mediaSession.setActionHandler("play", () => togglePlay());
         navigator.mediaSession.setActionHandler("pause", () => togglePlay());
         
-        // AQUÍ ESTÁ EL SECRETO PARA ADELANTAR/ATRASAR
+        // CONTROLES DE ADELANTAR/ATRASAR
         navigator.mediaSession.setActionHandler("previoustrack", () => {
+          // Retroceder 10s
           if (playerRef.current) {
-            // Retroceder 10 segundos
-            playerRef.current.seekTo(playedSeconds - 10, 'seconds');
+             playerRef.current.seekTo(playedSeconds - 10, 'seconds');
           }
         });
         navigator.mediaSession.setActionHandler("nexttrack", () => {
+          // Adelantar 10s
           if (playerRef.current) {
-            // Adelantar 10 segundos
-            playerRef.current.seekTo(playedSeconds + 10, 'seconds');
+             playerRef.current.seekTo(playedSeconds + 10, 'seconds');
           }
         });
-      } catch (e) {
-        // Ignoramos errores de media session
-      }
+
+      } catch (e) { console.warn(e); }
     }
   }, [currentVideo, isPlaying, togglePlay, playedSeconds, isMounted, pathname]);
 
-  // 4. SINCRONIZACIÓN BARRA DE PROGRESO
+  // --- 3. PROGRESO ---
   const handleProgress = (state: any) => {
     setPlayedSeconds(state.playedSeconds);
     if (typeof navigator !== "undefined" && "mediaSession" in navigator && duration > 0) {
@@ -76,7 +80,9 @@ export default function GlobalPlayer() {
     }
   };
 
-  // 5. RENDERIZADO CONDICIONAL (Al final, para no romper hooks)
+  // --- 4. RENDERIZADO CONDICIONAL (AL FINAL) ---
+  // Si ponemos esto antes de los hooks, React explota (Error #310).
+  // Al ponerlo aquí, aseguramos que la lógica siempre corra antes de decidir si mostramos o no.
   if (!isMounted) return null;
   if (!currentVideo) return null;
   if (pathname === "/aprender") return null;
@@ -96,7 +102,7 @@ export default function GlobalPlayer() {
         <button onClick={closeVideo} className="p-2 bg-gray-800 rounded-full hover:bg-red-900/50 text-gray-400 hover:text-white transition-colors">✕</button>
       </div>
 
-      {/* Reproductor */}
+      {/* Reproductor Nuclear */}
       <div className="relative pt-[56.25%] bg-black">
         <ReactPlayer
           ref={playerRef}
@@ -105,7 +111,7 @@ export default function GlobalPlayer() {
           height="100%"
           className="absolute top-0 left-0"
           playing={isPlaying}
-          controls={true} // Controles nativos activados para móvil
+          controls={true}
           
           onPlay={() => {
              if (!isPlaying) togglePlay();
