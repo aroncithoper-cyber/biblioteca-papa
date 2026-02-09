@@ -3,14 +3,14 @@
 import { usePlayer } from "@/lib/PlayerContext";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-// Importamos la librería general para evitar errores de ruta en Vercel
+// Importamos la librería general
 import ReactPlayer from "react-player";
 
 export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
   
-  // CORRECCIÓN CLAVE: Usamos <any> para que TypeScript no se queje
+  // Usamos <any> para evitar peleas con TypeScript sobre el tipo del player
   const playerRef = useRef<any>(null);
 
   // Estados para controlar el tiempo real
@@ -45,17 +45,15 @@ export default function GlobalPlayer() {
         if (isPlaying) togglePlay();
       });
       navigator.mediaSession.setActionHandler("previoustrack", () => {
-        // Retroceder 10 seg
         playerRef.current?.seekTo(playedSeconds - 10);
       });
       navigator.mediaSession.setActionHandler("nexttrack", () => {
-        // Adelantar 10 seg
         playerRef.current?.seekTo(playedSeconds + 10);
       });
     }
   }, [currentVideo, isPlaying, togglePlay, playedSeconds]);
 
-  // --- SINCRONIZACIÓN DE TIEMPO (El secreto para que la barra no salte) ---
+  // --- SINCRONIZACIÓN DE TIEMPO ---
   const handleProgress = (state: { playedSeconds: number }) => {
     setPlayedSeconds(state.playedSeconds);
 
@@ -67,7 +65,7 @@ export default function GlobalPlayer() {
           position: state.playedSeconds,
         });
       } catch (error) {
-        // Ignoramos errores si el video no ha cargado bien
+        // Ignoramos errores menores
       }
     }
   };
@@ -92,7 +90,7 @@ export default function GlobalPlayer() {
         </button>
       </div>
 
-      {/* Reproductor Inteligente (Oculto pero funcional) */}
+      {/* Reproductor Inteligente */}
       <div className="relative pt-[56.25%] bg-black">
         <ReactPlayer
           ref={playerRef}
@@ -101,9 +99,8 @@ export default function GlobalPlayer() {
           height="100%"
           className="absolute top-0 left-0"
           playing={isPlaying}
-          controls={true} // Ponemos controles nativos por si acaso
+          controls={true} 
           
-          // Eventos clave para Spotify-mode
           onPlay={() => {
             if (!isPlaying) togglePlay();
             if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
@@ -112,10 +109,12 @@ export default function GlobalPlayer() {
             if (isPlaying) togglePlay();
             if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
           }}
-          onDuration={(d) => setDuration(d)}
+          
+          // AQUÍ ESTABA EL ERROR: Le agregamos ": number" para que sepa qué es
+          onDuration={(d: number) => setDuration(d)}
+          
           onProgress={handleProgress}
           
-          // Configuración para que suene en segundo plano (importante)
           config={{
             youtube: {
               playerVars: { 
