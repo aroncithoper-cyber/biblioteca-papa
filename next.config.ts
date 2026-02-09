@@ -28,7 +28,17 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const nextConfig: NextConfig = {
-  // ESTO ES LO QUE PIDE VERCEL PARA NO TRONAR
+  // Configuración de Imágenes PRO
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        pathname: '/**',
+      },
+    ],
+  },
+  // Arreglo para Vercel
   turbopack: {}, 
   webpack: (config: any) => {
     return config;

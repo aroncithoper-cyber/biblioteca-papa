@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 // @ts-ignore
 import HTMLFlipBook from "react-pageflip";
 import * as pdfjsLib from "pdfjs-dist";
@@ -18,12 +18,17 @@ function clamp(n: number, min: number, max: number) {
 
 export default function FlipbookViewer({ fileUrl }: Props) {
   const bookRef = useRef<any>(null);
+  const observer = useRef<IntersectionObserver | null>(null);
 
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(0);
   const [currentRender, setCurrentRender] = useState(0);
   const [errMsg, setErrMsg] = useState("");
+
+  // Estado para guardar progreso
+  const [currentPage, setCurrentPage] = useState(1);
+  const [resumeMsg, setResumeMsg] = useState("");
 
   const [zoom, setZoom] = useState(1);
   const [theme, setTheme] = useState<Theme>("light");
@@ -35,7 +40,35 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   const isZoomedFlip = zoom > 1.01;
   const renderScale = 2.0;
 
-  // Auto-detectar móvil para poner modo Scroll (Ebook) por defecto
+  // --- 1. LÓGICA DE GUARDADO DE PROGRESO (Resume Reading) ---
+  const storageKey = `progress_${fileUrl}`;
+
+  const saveProgress = useCallback((pageNum: number) => {
+    if (pageNum > 0) {
+      localStorage.setItem(storageKey, pageNum.toString());
+      setCurrentPage(pageNum);
+    }
+  }, [storageKey]);
+
+  // Recuperar progreso al cargar
+  useEffect(() => {
+    if (!loading && totalPages > 0) {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const p = parseInt(saved, 10);
+        if (p > 1 && p <= totalPages) {
+          // Pequeño delay para asegurar que el componente renderizó
+          setTimeout(() => {
+            manualGoToPage(p);
+            setResumeMsg(`📖 Retomando en pág. ${p}`);
+            setTimeout(() => setResumeMsg(""), 3000);
+          }, 500);
+        }
+      }
+    }
+  }, [loading, totalPages, storageKey]);
+
+  // --- AUTO-DETECTAR MÓVIL ---
   useEffect(() => {
     const apply = () => {
       const isMobile = window.matchMedia("(max-width: 767px)").matches;
@@ -46,18 +79,22 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     return () => window.removeEventListener("resize", apply);
   }, []);
 
-  // Bloqueo de seguridad (Ctrl+P, Ctrl+S)
+  // --- BLOQUEO DE SEGURIDAD REFORZADO ---
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if ((e.ctrlKey || e.metaKey) && (k === "p" || k === "s")) e.preventDefault();
+      // Bloquear Ctrl+P (Imprimir), Ctrl+S (Guardar), Ctrl+C (Copiar)
+      if ((e.ctrlKey || e.metaKey) && (k === "p" || k === "s" || k === "c")) {
+        e.preventDefault();
+        alert("Contenido protegido por derechos de autor - El Consejo del Obrero");
+      }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () =>
       window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
   }, []);
 
-  // Renderizar PDF
+  // --- RENDERIZADO DE PDF ---
   useEffect(() => {
     let cancelled = false;
     const ac = new AbortController();
@@ -71,8 +108,8 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         setTotalPages(0);
         setCurrentRender(0);
 
-        const res = await fetch(fileUrl, { cache: "no-store", signal: ac.signal });
-        if (!res.ok) throw new Error("No se pudo descargar el PDF");
+        const res = await fetch(fileUrl, { cache: "force-cache", signal: ac.signal });
+        if (!res.ok) throw new Error("Error cargando documento");
 
         const data = await res.arrayBuffer();
         // @ts-ignore
@@ -82,7 +119,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
         setTotalPages(pdfDoc.numPages);
 
-        // Calcular tamaño ideal del libro
+        // Calcular tamaño ideal
         const firstPage = await pdfDoc.getPage(1);
         const vp1 = firstPage.getViewport({ scale: 1 });
         const ratio = vp1.width / vp1.height;
@@ -90,7 +127,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         const width = clamp(Math.floor(baseHeight * ratio), 320, 560);
         setBookDimensions({ width, height: baseHeight });
 
-        const userMark = auth.currentUser?.email || "Copia Protegida";
+        const userMark = auth.currentUser?.email || "Copia de Lectura";
         const imgs: string[] = new Array(pdfDoc.numPages);
 
         for (let i = 1; i <= pdfDoc.numPages; i++) {
@@ -109,21 +146,22 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
           await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
 
-          // Marca de agua sutil
+          // Marca de agua dinámica (PRO)
           ctx.save();
-          const fontSize = Math.floor(canvas.width / 20);
-          ctx.font = `bold ${fontSize}px serif`;
-          ctx.fillStyle = "rgba(120, 120, 120, 0.08)";
+          const fontSize = Math.floor(canvas.width / 22);
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          ctx.fillStyle = "rgba(0, 0, 0, 0.04)"; // Muy sutil
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.translate(canvas.width / 2, canvas.height / 2);
           ctx.rotate(-Math.PI / 4);
-          ctx.fillText(userMark, 0, 0);
+          ctx.fillText("Consejero del Obrero - " + userMark, 0, 0);
           ctx.restore();
 
-          imgs[i - 1] = canvas.toDataURL("image/jpeg", 0.85);
+          imgs[i - 1] = canvas.toDataURL("image/jpeg", 0.80); // Un poco más comprimido para velocidad
 
-          if (i === 1 || i % 4 === 0 || i === pdfDoc.numPages) {
+          // Renderizado progresivo
+          if (i === 1 || i % 3 === 0 || i === pdfDoc.numPages) {
             const partial = imgs.slice(0, i).filter(Boolean);
             setPages(partial);
           }
@@ -149,6 +187,38 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     };
   }, [fileUrl]);
 
+  // --- INTERSECTION OBSERVER (Detectar página en SCROLL) ---
+  useEffect(() => {
+    if (viewMode === "scroll" && !loading && pages.length > 0) {
+      // Desconectar anterior si existe
+      if (observer.current) observer.current.disconnect();
+
+      observer.current = new IntersectionObserver(
+        (entries) => {
+          // Buscamos cuál elemento es el más visible
+          const visibleEntry = entries.find((entry) => entry.isIntersecting);
+          if (visibleEntry) {
+            // El ID es "page-0", "page-1"... sacamos el número
+            const index = parseInt(visibleEntry.target.id.replace("page-", ""), 10);
+            if (!isNaN(index)) {
+              saveProgress(index + 1); // Guardamos (index + 1 porque visualmente es pág 1)
+            }
+          }
+        },
+        { threshold: 0.5 } // Se activa cuando el 50% de la página es visible
+      );
+
+      // Observar todas las páginas
+      pages.forEach((_, idx) => {
+        const el = document.getElementById(`page-${idx}`);
+        if (el) observer.current?.observe(el);
+      });
+    }
+
+    return () => observer.current?.disconnect();
+  }, [viewMode, loading, pages, saveProgress]);
+
+
   const progress = totalPages ? Math.round((currentRender / totalPages) * 100) : 0;
 
   const themeStyles = useMemo(() => {
@@ -160,26 +230,39 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   }, []);
 
   const headerBg = useMemo(() => {
-    if (theme === "dark") return "bg-black/60";
-    if (theme === "sepia") return "bg-[#f4ecd8]/80";
-    return "bg-white/80";
+    if (theme === "dark") return "bg-black/80 text-gray-200";
+    if (theme === "sepia") return "bg-[#f4ecd8]/90 text-amber-900";
+    return "bg-white/90 text-gray-600";
   }, [theme]);
 
-  const goToPage = (e: React.FormEvent) => {
-    e.preventDefault();
-    const p = parseInt(targetPage, 10);
+  // Función unificada para ir a página
+  const manualGoToPage = (p: number) => {
     if (!Number.isFinite(p) || p < 1 || p > totalPages) return;
 
     if (viewMode === "flip") {
+      // La librería usa índice 0
       bookRef.current?.pageFlip()?.turnToPage(p - 1);
+      saveProgress(p);
     } else {
-      document.getElementById(`page-${p - 1}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      const el = document.getElementById(`page-${p - 1}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        saveProgress(p);
+      }
     }
+  };
+
+  const handleGoToSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    manualGoToPage(parseInt(targetPage, 10));
     setTargetPage("");
   };
+
+  // Callback para cambio de página en modo FLIP
+  const onFlip = useCallback((e: any) => {
+    // e.data es el índice de la nueva página (0, 1, 2...)
+    saveProgress(e.data + 1);
+  }, [saveProgress]);
 
   const FlipBookComponent: any = HTMLFlipBook;
 
@@ -188,20 +271,30 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       className={`w-full flex flex-col items-center gap-4 py-4 select-none transition-colors duration-500 min-h-screen ${
         theme === "dark" ? "bg-[#121212]" : "bg-gray-50"
       }`}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()} // Bloqueo Clic Derecho
     >
+      {/* --- NOTIFICACIÓN DE RESUME READING --- */}
+      {resumeMsg && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] bg-black/80 text-white px-6 py-2 rounded-full text-xs font-bold animate-bounce shadow-xl backdrop-blur-md flex items-center gap-2">
+          <span>{resumeMsg}</span>
+          <button onClick={() => setResumeMsg("")} className="ml-2 text-gray-400 hover:text-white">✕</button>
+        </div>
+      )}
+
       {/* --- BARRA DE HERRAMIENTAS --- */}
-      <div className="sticky top-4 z-50 flex flex-wrap items-center justify-center gap-3 px-4 py-2 bg-white/95 backdrop-blur-xl border border-amber-100 rounded-full shadow-xl mx-4 max-w-full">
+      <div className={`sticky top-4 z-50 flex flex-wrap items-center justify-center gap-3 px-4 py-2 backdrop-blur-xl border rounded-full shadow-2xl mx-4 max-w-full transition-colors duration-300 ${
+         theme === 'dark' ? 'bg-gray-900/80 border-gray-700' : 'bg-white/95 border-amber-100'
+      }`}>
         <button
           onClick={() => setViewMode(viewMode === "flip" ? "scroll" : "flip")}
-          className="flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[10px] font-bold uppercase hover:bg-amber-600 transition-colors shadow-md"
+          className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-full text-[10px] font-bold uppercase hover:shadow-lg transition-all transform hover:scale-105"
         >
           {viewMode === "flip" ? "📱 Modo Ebook" : "📖 Modo Libro 3D"}
         </button>
 
         <div className="w-px h-4 bg-gray-300 hidden sm:block" />
 
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-full">
+        <div className={`flex gap-1 p-1 rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
           {(["light", "sepia", "dark"] as Theme[]).map((t) => (
             <button
               key={t}
@@ -219,9 +312,10 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           ))}
         </div>
 
-        {/* --- BOTONES DE ZOOM (AHORA VISIBLES EN AMBOS MODOS) --- */}
         <div className="w-px h-4 bg-gray-300 hidden sm:block" />
-        <div className="flex items-center border rounded-full px-2 bg-white">
+        
+        {/* Zoom Controls */}
+        <div className={`flex items-center border rounded-full px-2 ${theme === 'dark' ? 'bg-black border-gray-700 text-white' : 'bg-white text-black'}`}>
           <button
             className="px-2 font-bold hover:text-amber-600"
             onClick={() => setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, 3.0))}
@@ -239,32 +333,37 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           </button>
         </div>
 
-        <form onSubmit={goToPage} className="flex items-center gap-1 border-l pl-3 border-gray-200">
+        <form onSubmit={handleGoToSubmit} className="flex items-center gap-1 border-l pl-3 border-gray-200">
           <input
             type="number"
-            placeholder="#"
-            className="w-12 px-2 py-1 text-[10px] text-center border rounded outline-none focus:border-amber-500"
+            placeholder={currentPage.toString()}
+            className={`w-12 px-2 py-1 text-[10px] text-center border rounded outline-none focus:border-amber-500 ${
+                theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white'
+            }`}
             value={targetPage}
             onChange={(e) => setTargetPage(e.target.value)}
           />
-          <button type="submit" className="text-[10px] font-bold uppercase text-amber-700">
+          <button type="submit" className="text-[10px] font-bold uppercase text-amber-600 hover:text-amber-700">
             Ir
           </button>
         </form>
       </div>
 
       {loading && (
-        <div className="flex flex-col items-center justify-center py-20 animate-pulse">
-          <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-          <p className="text-xs text-amber-800 font-bold uppercase tracking-widest">
-            Preparando Obra... {progress}%
+        <div className="flex flex-col items-center justify-center py-32 animate-pulse">
+          <div className="relative w-16 h-16 mb-4">
+             <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+             <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin"></div>
+          </div>
+          <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">
+            Preparando Biblioteca... {progress}%
           </p>
         </div>
       )}
 
       {errMsg && (
-        <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">
-          {errMsg}
+        <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm font-medium shadow-sm">
+          ⚠️ {errMsg}
         </div>
       )}
 
@@ -272,7 +371,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       {viewMode === "flip" && !loading && pages.length > 0 && (
         <div
           className={`w-full max-w-6xl border rounded-[2.5rem] p-4 sm:p-10 shadow-inner transition-colors ${themeStyles[theme]} ${
-            theme === "dark" ? "border-gray-800" : "border-gray-100"
+            theme === "dark" ? "border-gray-800 shadow-none" : "border-gray-100"
           }`}
         >
           <div
@@ -280,8 +379,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: "top center",
-              transition: "transform 180ms ease-out",
-              willChange: "transform",
+              transition: "transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
             }}
           >
             <FlipBookComponent
@@ -299,10 +397,9 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               className="book-main shadow-2xl"
               style={{ margin: "0 auto" }}
               startPage={0}
-              startZIndex={0}
-              autoSize={true}
+              onFlip={onFlip} // <-- AQUÍ DETECTAMOS EL CAMBIO DE PÁGINA
               usePortrait={true}
-              flippingTime={900}
+              flippingTime={800}
               maxShadowOpacity={0.5}
               showPageCorners={true}
               clickEventForward={!isZoomedFlip}
@@ -311,16 +408,21 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               swipeDistance={isZoomedFlip ? 9999 : 30}
             >
               {pages.map((src, idx) => (
-                <div key={idx} className="bg-white border-l border-gray-50 overflow-hidden relative">
-                  <div className="w-full h-full p-2 flex items-center justify-center">
+                <div key={idx} className="bg-white border-l border-gray-50 overflow-hidden relative group">
+                  <div className="w-full h-full p-2 flex items-center justify-center relative">
+                     {/* CAPA DE PROTECCIÓN TRANSPARENTE (Antirrobo) */}
+                     <div className="absolute inset-0 z-10 w-full h-full" onContextMenu={(e) => e.preventDefault()} />
                     <img
                       src={src}
                       alt={`Pág ${idx + 1}`}
-                      className="max-w-full max-h-full object-contain pointer-events-none"
+                      className="max-w-full max-h-full object-contain pointer-events-none select-none"
                       draggable={false}
+                      style={{
+                          filter: theme === 'dark' ? 'brightness(0.9) contrast(1.1)' : 'none'
+                      }}
                     />
                   </div>
-                  <div className="absolute bottom-2 w-full text-center text-[8px] text-gray-400 font-serif">
+                  <div className="absolute bottom-3 w-full text-center text-[9px] text-gray-400 font-serif opacity-50">
                     — {idx + 1} —
                   </div>
                 </div>
@@ -333,42 +435,43 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       {/* --- MODO EBOOK (SCROLL) --- */}
       {viewMode === "scroll" && !loading && pages.length > 0 && (
         <div className="w-full max-w-3xl px-0 flex flex-col gap-0 pb-32">
-          <div className={`text-center py-3 text-[10px] text-gray-500 uppercase tracking-widest sticky top-0 z-10 ${headerBg} backdrop-blur-sm`}>
-            Lectura Continua
+          <div className={`text-center py-3 text-[10px] font-bold uppercase tracking-widest sticky top-0 z-20 ${headerBg} backdrop-blur-md border-b border-gray-100/10 shadow-sm`}>
+            Vista Continua • {Math.round(progress)}% Leído
           </div>
 
-          {/* CONTENEDOR CON ZOOM APLICADO */}
           <div
             className="w-full transition-transform duration-200 ease-out origin-top"
             style={{
               transform: `scale(${zoom})`,
-              // Ajustamos la interacción para que sea fluida
               overscrollBehavior: "contain",
-              WebkitOverflowScrolling: "touch",
             }}
           >
             {pages.map((src, idx) => (
               <div
                 key={idx}
-                id={`page-${idx}`}
-                className={`w-full relative shadow-sm ${themeStyles[theme]} mb-2`}
+                id={`page-${idx}`} // ID necesario para el IntersectionObserver
+                className={`w-full relative shadow-sm ${themeStyles[theme]} mb-2 transition-colors duration-300`}
               >
+                {/* CAPA DE PROTECCIÓN TRANSPARENTE (Antirrobo Móvil) */}
+                <div className="absolute inset-0 z-20 w-full h-full bg-transparent" />
+                
                 <img
                   src={src}
                   alt={`Página ${idx + 1}`}
-                  className="w-full h-auto block"
+                  className="w-full h-auto block pointer-events-none select-none"
                   loading="lazy"
+                  draggable={false}
                   style={{
                     filter:
                       theme === "dark"
-                        ? "invert(0.9) hue-rotate(180deg)"
+                        ? "invert(0.92) hue-rotate(180deg) contrast(0.9)" // Modo oscuro PRO real
                         : theme === "sepia"
-                        ? "sepia(0.3)"
+                        ? "sepia(0.25) contrast(1.05)"
                         : "none",
                   }}
                 />
 
-                <div className="absolute bottom-2 right-2 bg-black/50 text-white px-2 py-0.5 rounded text-[9px] font-bold opacity-30 hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-2 right-2 bg-black/40 text-white px-2 py-0.5 rounded text-[9px] font-bold opacity-0 hover:opacity-100 transition-opacity">
                   {idx + 1}
                 </div>
               </div>
@@ -381,6 +484,10 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         .book-main { background: transparent; }
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         html { scroll-behavior: smooth; }
+        /* Bloqueo total de selección */
+        * { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+        /* Permitir seleccionar en inputs */
+        input, textarea { -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; user-select: text; }
       `}</style>
     </div>
   );
