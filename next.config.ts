@@ -11,7 +11,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
     runtimeCaching: [
       {
         urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*$/,
-        handler: "CacheFirst",
+        handler: "StaleWhileRevalidate",
         options: {
           cacheName: "firebase-storage-cache",
           expiration: {
@@ -28,8 +28,9 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const nextConfig: NextConfig = {
-  // AGREGAMOS ESTA LÍNEA PARA EVITAR EL ERROR DE TURBOPACK
-  webpack: (config) => {
+  // ESTO ES LO QUE PIDE VERCEL PARA NO TRONAR
+  turbopack: {}, 
+  webpack: (config: any) => {
     return config;
   },
 };
