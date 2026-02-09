@@ -3,13 +3,15 @@
 import { usePlayer } from "@/lib/PlayerContext";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-// Importamos el reproductor inteligente
+// Importamos la librería general para evitar errores de ruta en Vercel
 import ReactPlayer from "react-player";
 
 export default function GlobalPlayer() {
   const { currentVideo, closeVideo, isPlaying, togglePlay } = usePlayer();
   const pathname = usePathname();
-  const playerRef = useRef<ReactPlayer>(null);
+  
+  // CORRECCIÓN CLAVE: Usamos <any> para que TypeScript no se queje
+  const playerRef = useRef<any>(null);
 
   // Estados para controlar el tiempo real
   const [duration, setDuration] = useState(0);
@@ -43,11 +45,11 @@ export default function GlobalPlayer() {
         if (isPlaying) togglePlay();
       });
       navigator.mediaSession.setActionHandler("previoustrack", () => {
-        // Aquí podrías poner lógica para retroceder 10 seg
+        // Retroceder 10 seg
         playerRef.current?.seekTo(playedSeconds - 10);
       });
       navigator.mediaSession.setActionHandler("nexttrack", () => {
-        // Aquí podrías poner lógica para adelantar 10 seg
+        // Adelantar 10 seg
         playerRef.current?.seekTo(playedSeconds + 10);
       });
     }
@@ -65,7 +67,7 @@ export default function GlobalPlayer() {
           position: state.playedSeconds,
         });
       } catch (error) {
-        // A veces falla si el video no ha cargado bien, ignoramos el error
+        // Ignoramos errores si el video no ha cargado bien
       }
     }
   };
