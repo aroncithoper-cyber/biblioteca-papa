@@ -41,7 +41,7 @@ export default function AdminPage() {
 
   // Estados Documentos
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(""); // NUEVO: Categoría
+  const [category, setCategory] = useState(""); 
   const [file, setFile] = useState<File | null>(null);
   const [cover, setCover] = useState<File | null>(null);
   const [isPublic, setIsPublic] = useState(false);
@@ -49,9 +49,12 @@ export default function AdminPage() {
   // Estados Galería y Videos
   const [galleryFile, setGalleryFile] = useState<File | null>(null);
   const [galleryDesc, setGalleryDesc] = useState("");
+  
+  // VIDEOS
   const [vidTitle, setVidTitle] = useState("");
   const [vidDesc, setVidDesc] = useState("");
   const [vidLink, setVidLink] = useState("");
+  const [vidCategory, setVidCategory] = useState(""); // NUEVO: Categoría de Video
 
   // Estados Notificaciones
   const [notifTitle, setNotifTitle] = useState("");
@@ -97,7 +100,7 @@ export default function AdminPage() {
       await updateDoc(docRef, {
         title: editingDoc.title,
         isPublic: editingDoc.isPublic,
-        category: editingDoc.category || "General" // Guardamos la categoría editada
+        category: editingDoc.category || "General"
       });
       alert("✅ Libro actualizado correctamente");
       setEditingDoc(null);
@@ -180,18 +183,15 @@ export default function AdminPage() {
         coverUrl: coverUrl,
         storagePath: pdfPath,
         isPublic: isPublic,
-        category: category.trim() || "General", // Guardamos la categoría (o General por defecto)
+        category: category.trim() || "General",
         authorizedEmails: [],
         createdAt: serverTimestamp(),
       });
 
       alert("🎉 ¡Libro publicado!");
       setTitle(""); setCategory(""); setFile(null); setCover(null); setIsPublic(false);
-      
-      // Limpiar inputs
       (document.getElementById("pdfInput") as HTMLInputElement).value = "";
       (document.getElementById("coverInput") as HTMLInputElement).value = "";
-      
       loadData();
     } catch (e: any) { alert("Error: " + e.message); } 
     finally { setLoading(false); }
@@ -222,10 +222,14 @@ export default function AdminPage() {
     setLoading(true);
     try {
       await addDoc(collection(db, "videos"), {
-        title: vidTitle, description: vidDesc, youtubeId, createdAt: serverTimestamp()
+        title: vidTitle, 
+        description: vidDesc, 
+        youtubeId, 
+        category: vidCategory.trim() || "General", // GUARDAR CATEGORÍA
+        createdAt: serverTimestamp()
       });
       alert("🎥 Video agregado");
-      setVidTitle(""); setVidDesc(""); setVidLink("");
+      setVidTitle(""); setVidDesc(""); setVidLink(""); setVidCategory("");
       loadData();
     } catch (e: any) { alert("Error: " + e.message); } 
     finally { setLoading(false); }
@@ -265,7 +269,7 @@ export default function AdminPage() {
     <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20 relative">
       <Header />
       
-      {/* MODAL EDICIÓN */}
+      {/* MODAL EDICIÓN LIBROS */}
       {editingDoc && (
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
@@ -319,7 +323,6 @@ export default function AdminPage() {
             <div className="space-y-4">
               <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título del Libro..." value={title} onChange={(e) => setTitle(e.target.value)} />
               
-              {/* CAMPO NUEVO: CATEGORÍA */}
               <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Ampliación de Lecciones)..." value={category} onChange={(e) => setCategory(e.target.value)} />
 
               <div className="grid grid-cols-2 gap-4">
@@ -373,6 +376,10 @@ export default function AdminPage() {
                     <div className="space-y-4">
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título" value={vidTitle} onChange={(e)=>setVidTitle(e.target.value)} />
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción" value={vidDesc} onChange={(e)=>setVidDesc(e.target.value)} />
+                        
+                        {/* INPUT PARA CATEGORÍA DE VIDEO */}
+                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Estudios, Himnos...)" value={vidCategory} onChange={(e)=>setVidCategory(e.target.value)} />
+                        
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Link de YouTube" value={vidLink} onChange={(e)=>setVidLink(e.target.value)} />
                         <button onClick={uploadVideo} disabled={loading} className="w-full py-4 bg-red-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
                             {loading ? "..." : "Agregar Video"}
@@ -383,7 +390,10 @@ export default function AdminPage() {
                             {videos.map(v => (
                                 <div key={v.id} className="bg-white p-3 rounded-xl border border-gray-100 flex gap-3 items-center shadow-sm">
                                     <img src={`https://img.youtube.com/vi/${v.youtubeId}/default.jpg`} className="w-10 h-10 rounded object-cover" alt="" />
-                                    <p className="text-xs font-bold truncate flex-1">{v.title}</p>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate">{v.title}</p>
+                                        <p className="text-[9px] text-gray-500 uppercase">{v.category || "General"}</p>
+                                    </div>
                                     <button onClick={()=>deleteVideo(v.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full font-bold text-xs">✕</button>
                                 </div>
                             ))}
@@ -455,7 +465,6 @@ export default function AdminPage() {
                           <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${d.isPublic ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
                             {d.isPublic ? 'Público' : 'Privado'}
                           </span>
-                          {/* ETIQUETA DE CATEGORÍA */}
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest bg-gray-100 text-gray-500">
                             {d.category || "General"}
                           </span>
