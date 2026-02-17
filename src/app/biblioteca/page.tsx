@@ -14,11 +14,12 @@ import {
   setDoc
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+// IMPORTANTE: Agregamos mensajería
+import { getMessaging, getToken } from "firebase/messaging";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation"; 
 import Header from "@/components/Header";
 import Link from "next/link";
-// Importamos el modal de instalación
 import InstallGuideModal from "@/components/InstallGuideModal";
 
 type DocItem = {
@@ -148,12 +149,39 @@ export default function BibliotecaPage() {
     }
   };
 
-  // Función Notificaciones
+  // Función Notificaciones ACTUALIZADA
   const handleEnableNotifications = async () => {
     if (!("Notification" in window)) return;
+    
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      alert("✅ ¡Avisos Activados!\nTe notificaremos cuando haya nuevos libros.");
+      // 1. MENSAJE DE BIENVENIDA AUTOMÁTICO
+      new Notification("¡Bienvenido a la Biblioteca!", {
+        body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
+        icon: "/icon-192.png",
+        // @ts-ignore
+        vibrate: [200, 100, 200]
+      });
+
+      // 2. GUARDAR TOKEN EN BASE DE DATOS
+      try {
+        const messaging = getMessaging();
+        // Intentamos obtener el token. Si falta la VAPID key, podría fallar silenciosamente, 
+        // pero la notificación local (paso 1) funcionará igual.
+        const token = await getToken(messaging);
+        
+        if (token) {
+           await addDoc(collection(db, "fcm_tokens"), {
+             token: token,
+             email: userEmail || "anonimo",
+             createdAt: serverTimestamp()
+           });
+           console.log("Dispositivo registrado para notificaciones");
+        }
+      } catch (error) {
+        console.log("Nota: Notificación activada localmente.");
+      }
+
     } else {
       alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
     }

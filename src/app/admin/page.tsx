@@ -56,6 +56,10 @@ export default function AdminPage() {
   const [vidDesc, setVidDesc] = useState("");
   const [vidLink, setVidLink] = useState("");
 
+  // ESTADOS NOTIFICACIONES (NUEVO)
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
+
   // Estado Edición
   const [editingDoc, setEditingDoc] = useState<any>(null);
 
@@ -118,34 +122,27 @@ export default function AdminPage() {
     const email = emailOverride || userEmailToAuthorize[docId]?.trim().toLowerCase();
     if (!email) return alert("Error: Correo no válido");
     
-    // --- LÓGICA WHATSAPP PRO (Recuperar datos antes de borrar) ---
     let phoneNumber = "";
     let bookTitle = "el libro solicitado";
     
     if (requestId) {
         const reqData = requests.find(r => r.id === requestId);
         if (reqData) {
-            // Limpiamos el número de espacios o guiones
             phoneNumber = reqData.whatsapp ? reqData.whatsapp.replace(/\D/g, '') : "";
             bookTitle = reqData.bookTitle || bookTitle;
         }
     }
-    // ------------------------------------------------------------
 
     setLoading(true);
     try {
-      // 1. Dar acceso en la base de datos
       await updateDoc(doc(db, "documents", docId), { authorizedEmails: arrayUnion(email) });
       
-      // 2. Borrar la solicitud de la lista
       if (requestId) {
         await deleteDoc(doc(db, "requests", requestId));
       }
 
-      // 3. ABRIR WHATSAPP AUTOMÁTICAMENTE
       if (phoneNumber) {
           const message = `¡Paz a vosotros! 🕊️\n\nTu solicitud para acceder al libro *"${bookTitle}"* ha sido APROBADA.\n\nYa puedes entrar a leerlo aquí:\nhttps://consejero-del-obrero.vercel.app/biblioteca\n\n¡Bendiciones!`;
-          // Usamos window.open para abrir la app de WhatsApp o Web
           window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
       }
 
@@ -227,7 +224,6 @@ export default function AdminPage() {
     }
   };
 
-  // --- LOGICA DE GALERIA ---
   const uploadToGallery = async () => {
     if (!galleryFile) return alert("⚠️ Selecciona una foto");
     setLoading(true);
@@ -253,7 +249,6 @@ export default function AdminPage() {
     } finally { setLoading(false); }
   };
 
-  // --- LOGICA DE VIDEOS ---
   const uploadVideo = async () => {
     if (!vidTitle.trim()) return alert("Falta el título del video");
     if (!vidLink.trim()) return alert("Falta el link de YouTube");
@@ -287,6 +282,37 @@ export default function AdminPage() {
     finally { setLoading(false); }
   };
 
+  // --- LOGICA DE ENVÍO DE NOTIFICACIONES ---
+  const sendPushNotification = async () => {
+    if (!notifTitle.trim() || !notifBody.trim()) {
+      return alert("⚠️ Escribe un título y un mensaje para enviar.");
+    }
+    
+    if (!confirm(`¿Estás seguro de enviar esta notificación a TODOS los suscritos?\n\n"${notifTitle}"`)) return;
+
+    setLoading(true);
+    try {
+      // Llamamos a nuestro API Route (que crearemos en el siguiente paso si no existe)
+      const res = await fetch("/api/send-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: notifTitle, body: notifBody }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(`✅ Notificación enviada con éxito.\nDispositivos alcanzados: ${data.sentCount || 'N/A'}`);
+        setNotifTitle("");
+        setNotifBody("");
+      } else {
+        alert("❌ Error al enviar: " + (data.error || "Error desconocido"));
+      }
+    } catch (e: any) {
+      alert("❌ Error de conexión: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isAdmin) {
     return (
@@ -338,7 +364,7 @@ export default function AdminPage() {
       <section className="max-w-5xl mx-auto px-6 py-16">
         <h1 className="text-5xl font-bold text-gray-900 tracking-tighter mb-12 border-b border-amber-100 pb-10">Administración</h1>
 
-        {/* --- GRID SUPERIOR: LIBROS Y GALERÍA --- */}
+        {/* --- GRID SUPERIOR --- */}
         <div className="grid md:grid-cols-2 gap-10 mb-10">
           {/* SECCIÓN 01: LIBROS */}
           <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-amber-50">
@@ -387,41 +413,79 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* --- SECCIÓN 03: VIDEOS --- */}
-        <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-red-50 mb-20">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-red-700">
-               <span className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px]">03</span>
-               Videos para "Aprender"
-            </h2>
-            <div className="grid md:grid-cols-2 gap-8">
+        {/* --- GRID MEDIO: VIDEOS Y NOTIFICACIONES --- */}
+        <div className="grid md:grid-cols-2 gap-10 mb-20">
+            
+            {/* SECCIÓN 03: VIDEOS */}
+            <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-red-50">
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-red-700">
+                    <span className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px]">03</span>
+                    Videos para "Aprender"
+                </h2>
                 <div className="space-y-4">
-                    <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título del Video" value={vidTitle} onChange={(e)=>setVidTitle(e.target.value)} />
-                    <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción breve" value={vidDesc} onChange={(e)=>setVidDesc(e.target.value)} />
-                    <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Link de YouTube (Pégalo aquí)" value={vidLink} onChange={(e)=>setVidLink(e.target.value)} />
-                    <button onClick={uploadVideo} disabled={loading} className="w-full py-4 bg-red-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
-                        {loading ? "Guardando..." : "Agregar Video"}
-                    </button>
-                </div>
-                <div className="bg-[#fcfaf7] rounded-2xl p-4 h-64 overflow-y-auto custom-scrollbar">
-                    <h3 className="text-[10px] font-bold uppercase text-gray-400 mb-4">Videos Publicados</h3>
-                    <div className="space-y-3">
-                        {videos.map(v => (
-                            <div key={v.id} className="bg-white p-3 rounded-xl border border-gray-100 flex gap-3 items-center shadow-sm">
-                                <img src={`https://img.youtube.com/vi/${v.youtubeId}/default.jpg`} className="w-12 h-12 rounded object-cover" alt="" />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold truncate">{v.title}</p>
-                                    <p className="text-[9px] text-gray-400 truncate">{v.description}</p>
-                                </div>
-                                <button onClick={()=>deleteVideo(v.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full font-bold text-xs">✕</button>
-                            </div>
-                        ))}
-                        {videos.length === 0 && <p className="text-center text-xs text-gray-400 italic pt-10">No hay videos aún</p>}
+                    <div className="space-y-4">
+                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título del Video" value={vidTitle} onChange={(e)=>setVidTitle(e.target.value)} />
+                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción breve" value={vidDesc} onChange={(e)=>setVidDesc(e.target.value)} />
+                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Link de YouTube" value={vidLink} onChange={(e)=>setVidLink(e.target.value)} />
+                        <button onClick={uploadVideo} disabled={loading} className="w-full py-4 bg-red-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
+                            {loading ? "Guardando..." : "Agregar Video"}
+                        </button>
                     </div>
+                    <div className="bg-[#fcfaf7] rounded-2xl p-4 h-48 overflow-y-auto custom-scrollbar">
+                        <h3 className="text-[10px] font-bold uppercase text-gray-400 mb-4">Videos Publicados</h3>
+                        <div className="space-y-3">
+                            {videos.map(v => (
+                                <div key={v.id} className="bg-white p-3 rounded-xl border border-gray-100 flex gap-3 items-center shadow-sm">
+                                    <img src={`https://img.youtube.com/vi/${v.youtubeId}/default.jpg`} className="w-10 h-10 rounded object-cover" alt="" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate">{v.title}</p>
+                                    </div>
+                                    <button onClick={()=>deleteVideo(v.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full font-bold text-xs">✕</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* SECCIÓN 04: CENTRO DE NOTIFICACIONES (NUEVO) */}
+            <div className="bg-gradient-to-br from-indigo-900 to-blue-900 rounded-[3rem] p-8 shadow-2xl text-white">
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
+                    <span className="w-8 h-8 bg-white text-indigo-900 rounded-full flex items-center justify-center text-[10px]">04</span>
+                    Enviar Notificación
+                </h2>
+                <div className="space-y-5">
+                    <p className="text-xs text-blue-200 leading-relaxed">
+                        Envía un mensaje a todos los dispositivos que tienen activadas las notificaciones. Úsalo para anunciar nuevos libros.
+                    </p>
+                    <input 
+                        className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none focus:bg-white/20" 
+                        placeholder="Título (Ej: ¡Nuevo Libro!)" 
+                        value={notifTitle} 
+                        onChange={(e)=>setNotifTitle(e.target.value)} 
+                    />
+                    <textarea 
+                        className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none focus:bg-white/20 h-32 resize-none" 
+                        placeholder="Mensaje (Ej: Ya está disponible el volumen 5...)" 
+                        value={notifBody} 
+                        onChange={(e)=>setNotifBody(e.target.value)} 
+                    />
+                    <button 
+                        onClick={sendPushNotification} 
+                        disabled={loading} 
+                        className="w-full py-4 bg-white text-indigo-900 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all shadow-lg flex items-center justify-center gap-2"
+                    >
+                        {loading ? "Enviando..." : (
+                           <>
+                             <span>🚀</span> Enviar a Todos
+                           </>
+                        )}
+                    </button>
                 </div>
             </div>
         </div>
 
-        {/* --- SECCIÓN 04: SOLICITUDES --- */}
+        {/* --- SECCIÓN 05: SOLICITUDES --- */}
         {requests.length > 0 && (
           <div className="mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 mb-8 flex items-center gap-4">
@@ -437,7 +501,6 @@ export default function AdminPage() {
                       <p className="text-[10px] uppercase tracking-widest text-amber-600">
                         Solicita leer: <span className="font-bold">{req.bookTitle}</span>
                       </p>
-                      {/* Mostramos el WhatsApp si existe */}
                       {req.whatsapp && <p className="text-[9px] text-green-600 font-bold">📞 {req.whatsapp}</p>}
                     </div>
                   </div>

@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
-// Importamos la guía de instalación
 import InstallGuideModal from "@/components/InstallGuideModal";
+// IMPORTANTE: Importamos lo necesario para notificaciones y base de datos
+import { getMessaging, getToken } from "firebase/messaging";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function LandingPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -27,13 +30,36 @@ export default function LandingPage() {
     setInstallPrompt(null);
   };
 
-  // Función para pedir permiso de Notificaciones desde la Portada
+  // Función para pedir permiso de Notificaciones CON BIENVENIDA Y GUARDADO
   const handleEnableNotifications = async () => {
     if (!("Notification" in window)) return;
     
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      alert("✅ ¡Avisos Activados!\nTe notificaremos cuando haya nuevos libros.");
+      // 1. MENSAJE DE BIENVENIDA
+      new Notification("¡Bienvenido a la Biblioteca!", {
+        body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
+        icon: "/icon-192.png",
+        // @ts-ignore
+        vibrate: [200, 100, 200]
+      });
+
+      // 2. INTENTAR GUARDAR TOKEN EN FIRESTORE
+      try {
+        const messaging = getMessaging();
+        const token = await getToken(messaging); 
+        
+        if (token) {
+           await addDoc(collection(db, "fcm_tokens"), {
+             token: token,
+             createdAt: serverTimestamp()
+           });
+           console.log("Token guardado desde Inicio");
+        }
+      } catch (error) {
+        console.log("Nota: Notificación local lista.");
+      }
+
     } else {
       alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
     }
