@@ -5,30 +5,19 @@ export async function POST(request: Request) {
   try {
     const { title, body } = await request.json();
 
-    if (!title || !body) {
-      return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
-    }
-
-    // 1. Buscamos TODOS los tokens guardados en la colección fcm_tokens
+    // 1. Buscamos los tokens en Firestore
     const tokensSnapshot = await adminDb.collection("fcm_tokens").get();
-    
-    // Extraemos solo los tokens válidos
     const tokens = tokensSnapshot.docs
       .map((doc) => doc.data().token)
-      .filter((token) => token); // Filtramos vacíos
+      .filter((token) => token);
 
     if (tokens.length === 0) {
-      return NextResponse.json({ success: false, message: "No hay dispositivos registrados aún" });
+      return NextResponse.json({ success: false, sentCount: 0, message: "No hay dispositivos" });
     }
 
-    console.log(`🚀 Enviando a ${tokens.length} dispositivos...`);
-
-    // 2. Enviamos el mensaje masivo
+    // 2. Intentamos el envío real
     const message = {
-      notification: {
-        title: title,
-        body: body,
-      },
+      notification: { title, body },
       tokens: tokens,
     };
 
@@ -36,12 +25,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      sentCount: response.successCount, 
-      failureCount: response.failureCount 
+      sentCount: response.successCount 
     });
 
   } catch (error: any) {
-    console.error("Error enviando notificaciones:", error);
+    console.error("ERROR CRÍTICO:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
