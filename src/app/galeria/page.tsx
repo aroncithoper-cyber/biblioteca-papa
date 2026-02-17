@@ -8,7 +8,7 @@ import Header from "@/components/Header";
 export default function GaleriaPage() {
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null); // Para el Lightbox (Pantalla completa)
+  const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -26,32 +26,32 @@ export default function GaleriaPage() {
     >
       <Header />
 
-      {/* TEXTURA DE FONDO (Efecto Papel Antiguo/Grano) */}
+      {/* TEXTURA DE FONDO */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-0 mix-blend-multiply" 
            style={{ backgroundImage: `url("https://www.transparenttextures.com/patterns/stardust.png")` }}>
       </div>
 
-      {/* LIGHTBOX (VISOR DE PANTALLA COMPLETA) */}
+      {/* LIGHTBOX (PANTALLA COMPLETA) */}
       {selectedPhoto && (
         <div 
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300"
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-500"
             onClick={() => setSelectedPhoto(null)}
         >
-            {/* Botón Cerrar */}
-            <button className="absolute top-6 right-6 text-white/50 hover:text-white p-2 transition-colors">
+            <button className="absolute top-6 right-6 text-white/50 hover:text-white p-2 transition-colors z-50">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
 
             <div className="relative max-w-5xl w-full max-h-screen flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+                {/* En pantalla completa SIEMPRE a color */}
                 <img 
                     src={selectedPhoto.url} 
                     className="max-w-full max-h-[80vh] object-contain rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.5)] border-4 border-white/10" 
                     alt="Detalle"
                 />
                 {selectedPhoto.description && (
-                    <p className="text-white/80 text-center mt-6 text-sm font-light italic tracking-wider max-w-xl">
+                    <p className="text-white/80 text-center mt-6 text-sm font-light italic tracking-wider max-w-xl animate-in slide-in-from-bottom-4">
                         "{selectedPhoto.description}"
                     </p>
                 )}
@@ -85,40 +85,43 @@ export default function GaleriaPage() {
             </p>
           </div>
         ) : (
-          /* GRILLA TIPO MASONRY (MURO) */
+          /* MASONRY GRID */
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 space-y-8 px-2">
             {photos.map((photo, index) => (
               <div
                 key={photo.id}
                 onClick={() => setSelectedPhoto(photo)}
                 className="group relative break-inside-avoid cursor-zoom-in"
+                // Animación de entrada escalonada
+                style={{ animationDelay: `${index * 100}ms` }}
               >
                 {/* MARCO DE LA FOTO */}
-                <div className="relative overflow-hidden rounded-2xl bg-gray-100 shadow-xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2">
+                <div className="relative overflow-hidden rounded-2xl bg-gray-200 shadow-xl transition-all duration-700 group-hover:shadow-2xl group-hover:-translate-y-2">
                     
-                    {/* Efecto de brillo al pasar el mouse */}
-                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 z-10 transition-colors duration-500"></div>
-
                     <img
                       src={photo.url}
                       alt={photo.description || "Foto"}
-                      className="w-full h-auto object-cover transform transition-transform duration-1000 group-hover:scale-110"
+                      className="w-full h-auto object-cover transform transition-all duration-[1500ms] ease-out 
+                                 filter grayscale contrast-[1.1] brightness-[0.9] 
+                                 group-hover:grayscale-0 group-hover:contrast-100 group-hover:brightness-100 group-hover:scale-105"
                       loading="lazy"
                     />
                     
-                    {/* SOMBRA INTERNA ELEGANTE */}
-                    <div className="absolute inset-0 ring-1 ring-inset ring-black/10 rounded-2xl z-20"></div>
-                </div>
-
-                {/* PIE DE FOTO (Solo aparece si hay descripción) */}
-                {photo.description && (
-                    <div className="pt-3 px-2 opacity-80 group-hover:opacity-100 transition-opacity duration-500">
-                        <div className="h-px w-8 bg-amber-300 mb-2"></div>
-                        <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider leading-tight">
-                            {photo.description}
-                        </p>
+                    {/* SOMBRA INTERNA (Vignette) */}
+                    <div className="absolute inset-0 ring-1 ring-inset ring-black/10 rounded-2xl z-20 pointer-events-none"></div>
+                    
+                    {/* CAPA DE DATOS */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
+                        {photo.description && (
+                            <>
+                                <div className="h-0.5 w-8 bg-amber-400 mb-2"></div>
+                                <p className="text-white text-xs font-bold leading-relaxed drop-shadow-md">
+                                    {photo.description}
+                                </p>
+                            </>
+                        )}
                     </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
