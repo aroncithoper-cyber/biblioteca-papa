@@ -54,14 +54,15 @@ export default function AdminPage() {
   const [vidTitle, setVidTitle] = useState("");
   const [vidDesc, setVidDesc] = useState("");
   const [vidLink, setVidLink] = useState("");
-  const [vidCategory, setVidCategory] = useState(""); // NUEVO: Categoría de Video
+  const [vidCategory, setVidCategory] = useState(""); 
 
   // Estados Notificaciones
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
 
-  // Edición
-  const [editingDoc, setEditingDoc] = useState<any>(null);
+  // ESTADOS DE EDICIÓN
+  const [editingDoc, setEditingDoc] = useState<any>(null); // Para editar libros
+  const [editingVideo, setEditingVideo] = useState<any>(null); // Para editar videos
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -92,6 +93,7 @@ export default function AdminPage() {
     } catch (e: any) { console.error("Error:", e); }
   };
 
+  // --- ACTUALIZAR LIBRO ---
   const handleUpdateDoc = async () => {
     if (!editingDoc) return;
     setLoading(true);
@@ -104,6 +106,34 @@ export default function AdminPage() {
       });
       alert("✅ Libro actualizado correctamente");
       setEditingDoc(null);
+      loadData();
+    } catch (e: any) { alert("Error: " + e.message); } 
+    finally { setLoading(false); }
+  };
+
+  // --- ACTUALIZAR VIDEO (NUEVO) ---
+  const handleUpdateVideo = async () => {
+    if (!editingVideo) return;
+    
+    // Si cambió el link, validamos el ID nuevo
+    let newYoutubeId = editingVideo.youtubeId;
+    if (editingVideo.newLink) {
+        const extractedId = getYouTubeID(editingVideo.newLink);
+        if (extractedId) newYoutubeId = extractedId;
+        else return alert("Link de YouTube inválido");
+    }
+
+    setLoading(true);
+    try {
+      const vidRef = doc(db, "videos", editingVideo.id);
+      await updateDoc(vidRef, {
+        title: editingVideo.title,
+        description: editingVideo.description,
+        category: editingVideo.category || "General",
+        youtubeId: newYoutubeId
+      });
+      alert("✅ Video actualizado correctamente");
+      setEditingVideo(null);
       loadData();
     } catch (e: any) { alert("Error: " + e.message); } 
     finally { setLoading(false); }
@@ -225,7 +255,7 @@ export default function AdminPage() {
         title: vidTitle, 
         description: vidDesc, 
         youtubeId, 
-        category: vidCategory.trim() || "General", // GUARDAR CATEGORÍA
+        category: vidCategory.trim() || "General", 
         createdAt: serverTimestamp()
       });
       alert("🎥 Video agregado");
@@ -269,7 +299,7 @@ export default function AdminPage() {
     <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20 relative">
       <Header />
       
-      {/* MODAL EDICIÓN LIBROS */}
+      {/* --- MODAL EDICIÓN LIBROS --- */}
       {editingDoc && (
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
@@ -284,7 +314,7 @@ export default function AdminPage() {
                 />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Categoría (Carpeta)</label>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Categoría</label>
                 <input 
                   value={editingDoc.category || ""}
                   onChange={(e) => setEditingDoc({ ...editingDoc, category: e.target.value })}
@@ -304,6 +334,54 @@ export default function AdminPage() {
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setEditingDoc(null)} className="flex-1 py-3 text-gray-500 font-bold text-xs uppercase hover:bg-gray-100 rounded-xl">Cancelar</button>
                 <button onClick={handleUpdateDoc} disabled={loading} className="flex-1 py-3 bg-black text-white font-bold text-xs uppercase rounded-xl hover:bg-amber-600 shadow-lg">{loading ? "..." : "Guardar"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL EDICIÓN VIDEOS (NUEVO) --- */}
+      {editingVideo && (
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+            <h3 className="text-xl font-bold mb-6 text-red-900">Editar Video</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Título</label>
+                <input 
+                  value={editingVideo.title}
+                  onChange={(e) => setEditingVideo({ ...editingVideo, title: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Descripción</label>
+                <input 
+                  value={editingVideo.description}
+                  onChange={(e) => setEditingVideo({ ...editingVideo, description: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Categoría</label>
+                <input 
+                  value={editingVideo.category || ""}
+                  onChange={(e) => setEditingVideo({ ...editingVideo, category: e.target.value })}
+                  placeholder="Ej: Estudios, Himnos..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Link YouTube (Opcional si quieres cambiarlo)</label>
+                <input 
+                  placeholder="Pegar nuevo link..."
+                  onChange={(e) => setEditingVideo({ ...editingVideo, newLink: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingVideo(null)} className="flex-1 py-3 text-gray-500 font-bold text-xs uppercase hover:bg-gray-100 rounded-xl">Cancelar</button>
+                <button onClick={handleUpdateVideo} disabled={loading} className="flex-1 py-3 bg-red-600 text-white font-bold text-xs uppercase rounded-xl hover:bg-red-800 shadow-lg">{loading ? "..." : "Guardar"}</button>
               </div>
             </div>
           </div>
@@ -377,7 +455,6 @@ export default function AdminPage() {
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título" value={vidTitle} onChange={(e)=>setVidTitle(e.target.value)} />
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción" value={vidDesc} onChange={(e)=>setVidDesc(e.target.value)} />
                         
-                        {/* INPUT PARA CATEGORÍA DE VIDEO */}
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Estudios, Himnos...)" value={vidCategory} onChange={(e)=>setVidCategory(e.target.value)} />
                         
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Link de YouTube" value={vidLink} onChange={(e)=>setVidLink(e.target.value)} />
@@ -394,7 +471,10 @@ export default function AdminPage() {
                                         <p className="text-xs font-bold truncate">{v.title}</p>
                                         <p className="text-[9px] text-gray-500 uppercase">{v.category || "General"}</p>
                                     </div>
-                                    <button onClick={()=>deleteVideo(v.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full font-bold text-xs">✕</button>
+                                    <div className="flex gap-1">
+                                        <button onClick={()=>setEditingVideo(v)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full font-bold text-xs">✎</button>
+                                        <button onClick={()=>deleteVideo(v.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full font-bold text-xs">✕</button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
