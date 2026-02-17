@@ -12,8 +12,8 @@ import {
   deleteDoc,
   doc, 
   setDoc,
-  limit,       // IMPORTANTE: Nuevo
-  onSnapshot   // IMPORTANTE: Nuevo (para escuchar cambios en tiempo real)
+  limit,      
+  onSnapshot  
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { getMessaging, getToken } from "firebase/messaging";
@@ -47,26 +47,21 @@ export default function BibliotecaPage() {
   const [requestedBookIds, setRequestedBookIds] = useState<string[]>([]);
   const [savedBookIds, setSavedBookIds] = useState<string[]>([]); 
   
-  // ESTADOS NUEVOS
   const [showInstallModal, setShowInstallModal] = useState(false);
-  const [ultimoAviso, setUltimoAviso] = useState<string | null>(null); // Estado para el Banner
+  const [ultimoAviso, setUltimoAviso] = useState<string | null>(null);
 
   const router = useRouter();
 
-  // 1. EFECTO PARA DETECTAR NUEVOS LIBROS (RESPALDO VISUAL)
+  // 1. RESPALDO VISUAL
   useEffect(() => {
-    // Escuchamos solo el último documento subido
     const q = query(collection(db, "documents"), orderBy("createdAt", "desc"), limit(1));
-    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         const nuevoDoc = snapshot.docs[0].data();
         const titulo = nuevoDoc.title;
-        // Obtenemos la fecha. Si es Timestamp de Firebase la convertimos, si no usamos Date.now()
         const fechaDoc = nuevoDoc.createdAt?.toDate ? nuevoDoc.createdAt.toDate().getTime() : Date.now();
         const hace24Horas = Date.now() - (24 * 60 * 60 * 1000);
 
-        // Si el libro se subió hace menos de 24 horas, mostramos el aviso
         if (fechaDoc > hace24Horas) {
           setUltimoAviso(titulo);
         }
@@ -75,7 +70,7 @@ export default function BibliotecaPage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. EFECTO DE AUTENTICACIÓN Y CARGA DE DATOS
+  // 2. AUTH Y CARGA
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -161,48 +156,71 @@ export default function BibliotecaPage() {
     }
   };
 
-  // --- 3. FUNCIÓN DE NOTIFICACIONES MEJORADA ---
+  // --- 3. FUNCIÓN DE NOTIFICACIONES "BLINDADA" ---
   const handleEnableNotifications = async () => {
     if (!("Notification" in window)) {
         alert("Tu navegador no soporta notificaciones.");
         return;
     }
-    
-    try {
-        // Pedimos permiso
-        const permission = await Notification.requestPermission();
-        
-        if (permission === "granted") {
-            // Bienvenida local (instantánea)
-            new Notification("¡Bienvenido a la Biblioteca!", {
-                body: "Avisos activados correctamente.",
-                icon: "/icon-192.png",
-                // @ts-ignore
-                vibrate: [200, 100, 200]
-            });
 
-            // Obtenemos Token
-            const messaging = getMessaging();
-            const token = await getToken(messaging, { 
-                vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E" 
-            });
-            
-            if (token) {
-                // Usamos setDoc para no duplicar registros si el usuario da clic varias veces
-                await setDoc(doc(db, "fcm_tokens", token), {
-                    token: token,
-                    email: userEmail || "anonimo",
-                    createdAt: serverTimestamp(),
-                    lastActive: serverTimestamp()
-                });
-                alert("✅ ¡Avisos activados con éxito!");
+    // A. Pedimos permiso primero
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+        alert("⚠️ Permiso bloqueado. Toca el candado 🔒 junto a la URL y selecciona 'Permitir' en Notificaciones.");
+        return;
+    }
+
+    try {
+        // B. Mensaje de bienvenida local
+        new Notification("¡Bienvenido a la Biblioteca!", {
+            body: "Configurando sistema de alertas...",
+            icon: "/icon-192.png",
+            // @ts-ignore
+            vibrate: [200, 100, 200]
+        });
+
+        // C. OBTENER TOKEN (FORZANDO EL SERVICE WORKER)
+        // Esto arregla el error "bad-precaching" porque registra un SW limpio
+        let registration;
+        try {
+            // Intentamos registrar el SW explícitamente
+            if ('serviceWorker' in navigator) {
+                registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                console.log("Service Worker registrado manualmente:", registration);
             }
-        } else if (permission === "denied") {
-            alert("⚠️ El permiso está bloqueado.\n\nPor favor, toca el CANDADO 🔒 junto a la dirección web y selecciona 'Permisos' -> 'Restablecer' o 'Permitir'.");
+        } catch (swError) {
+            console.warn("No se pudo registrar SW manual, intentando automático...", swError);
         }
-    } catch (error) {
-        console.error("Error activando notificaciones:", error);
-        alert("Hubo un error técnico. Intenta recargar la página.");
+
+        const messaging = getMessaging();
+        
+        // Pasamos el registro al getToken para asegurar que use el correcto
+        const token = await getToken(messaging, { 
+            vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E",
+            serviceWorkerRegistration: registration 
+        });
+        
+        if (token) {
+            await setDoc(doc(db, "fcm_tokens", token), {
+                token: token,
+                email: userEmail || "anonimo",
+                createdAt: serverTimestamp(),
+                lastActive: serverTimestamp(),
+                device: navigator.userAgent // Guardamos info del dispositivo para depurar
+            });
+            alert("✅ ¡Avisos activados con éxito! El sistema te reconocerá automáticamente.");
+        } else {
+            alert("No se pudo generar el token. Intenta recargar la página.");
+        }
+
+    } catch (error: any) {
+        console.error("Error CRÍTICO activando notificaciones:", error);
+        // Si el error es por falta de SW, avisamos
+        if (error.code === 'messaging/failed-service-worker-registration' || error.message?.includes('Registration failed')) {
+             alert("Error de conexión con el sistema de alertas. Por favor, recarga la página completamente.");
+        } else {
+             alert(`Error técnico: ${error.message}`);
+        }
     }
   };
 
@@ -214,7 +232,6 @@ export default function BibliotecaPage() {
     <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
 
-      {/* --- BANNER DE RESPALDO (Aparece si hay libro nuevo) --- */}
       {ultimoAviso && (
         <div className="fixed top-24 left-0 right-0 z-50 px-4 animate-in slide-in-from-top-4 duration-700">
             <div className="max-w-md mx-auto bg-amber-600/95 backdrop-blur-md text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center justify-between border-2 border-white/20">
@@ -225,9 +242,7 @@ export default function BibliotecaPage() {
                         <span className="text-sm font-bold leading-tight line-clamp-1">{ultimoAviso}</span>
                     </div>
                 </div>
-                <button onClick={() => setUltimoAviso(null)} className="ml-4 p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors">
-                    ✕
-                </button>
+                <button onClick={() => setUltimoAviso(null)} className="ml-4 p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors">✕</button>
             </div>
         </div>
       )}
