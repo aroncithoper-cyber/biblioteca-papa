@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   collection,
   getDocs,
@@ -28,10 +28,12 @@ type DocItem = {
   title: string;
   coverUrl?: string;
   isPublic?: boolean;
+  category?: string; // NUEVO: Campo para la carpeta
   authorizedEmails?: string[];
   createdAt?: any;
 };
 
+// Función para ordenar numéricamente (Vol. 1, Vol. 2...)
 const getBookNumber = (title: string) => {
   if (!title) return Infinity;
   const match = title.match(/(?:numero|número|num|no\.?|vol\.?)\s*(\d+)/i);
@@ -48,29 +50,45 @@ export default function BibliotecaPage() {
   const [savedBookIds, setSavedBookIds] = useState<string[]>([]); 
   
   const [showInstallModal, setShowInstallModal] = useState(false);
-  const [ultimoAviso, setUltimoAviso] = useState<string | null>(null);
+  
+  // ESTADO PARA EL AVISO INTELIGENTE
+  const [ultimoAviso, setUltimoAviso] = useState<{ id: string, title: string } | null>(null);
+
+  // ESTADO PARA CARPETAS
+  const [selectedCategory, setSelectedCategory] = useState("Todos");
 
   const router = useRouter();
 
-  // 1. RESPALDO VISUAL
+  // 1. BANNER INTELIGENTE (CON MEMORIA LOCAL)
   useEffect(() => {
     const q = query(collection(db, "documents"), orderBy("createdAt", "desc"), limit(1));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const nuevoDoc = snapshot.docs[0].data();
-        const titulo = nuevoDoc.title;
-        const fechaDoc = nuevoDoc.createdAt?.toDate ? nuevoDoc.createdAt.toDate().getTime() : Date.now();
-        const hace24Horas = Date.now() - (24 * 60 * 60 * 1000);
+        const docData = snapshot.docs[0].data();
+        const docId = snapshot.docs[0].id;
+        const titulo = docData.title;
+        const fechaDoc = docData.createdAt?.toDate ? docData.createdAt.toDate().getTime() : Date.now();
+        const hace48Horas = Date.now() - (48 * 60 * 60 * 1000); // Mostramos avisos de hasta 48hrs
 
-        if (fechaDoc > hace24Horas) {
-          setUltimoAviso(titulo);
+        // VERIFICAMOS SI YA LO VIO
+        const yaVisto = localStorage.getItem(`aviso_visto_${docId}`);
+
+        if (fechaDoc > hace48Horas && !yaVisto) {
+          setUltimoAviso({ id: docId, title: titulo });
         }
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. AUTH Y CARGA
+  const cerrarAviso = () => {
+    if (ultimoAviso) {
+      localStorage.setItem(`aviso_visto_${ultimoAviso.id}`, "true");
+      setUltimoAviso(null);
+    }
+  };
+
+  // 2. AUTH Y CARGA DE LIBROS
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -78,19 +96,14 @@ export default function BibliotecaPage() {
         setUserEmail(email);
         setUserId(user.uid);
 
-        try {
-          const qReq = query(collection(db, "requests"), where("userEmail", "==", email));
-          const snapReq = await getDocs(qReq);
-          const ids = snapReq.docs.map((d) => d.data().bookId);
-          setRequestedBookIds(ids);
-        } catch (e) { console.error(e); }
-
-        try {
-          const qFav = query(collection(db, "user_favorites"), where("userId", "==", user.uid), where("type", "==", "book"));
-          const snapFav = await getDocs(qFav);
-          const favIds = snapFav.docs.map((d) => d.data().contentId);
-          setSavedBookIds(favIds);
-        } catch (e) { console.error(e); }
+        // Cargar datos de usuario en paralelo para mayor velocidad
+        Promise.all([
+            getDocs(query(collection(db, "requests"), where("userEmail", "==", email))),
+            getDocs(query(collection(db, "user_favorites"), where("userId", "==", user.uid), where("type", "==", "book")))
+        ]).then(([reqSnap, favSnap]) => {
+            setRequestedBookIds(reqSnap.docs.map((d) => d.data().bookId));
+            setSavedBookIds(favSnap.docs.map((d) => d.data().contentId));
+        }).catch(e => console.error("Error cargando datos de usuario", e));
 
       } else {
         setUserEmail(null);
@@ -98,6 +111,7 @@ export default function BibliotecaPage() {
       }
     });
 
+    // Cargar Documentos
     (async () => {
       try {
         const q = query(collection(db, "documents"), orderBy("createdAt", "desc"));
@@ -108,13 +122,12 @@ export default function BibliotecaPage() {
           ...(d.data() as any),
         }));
 
+        // Ordenamiento inteligente
         fetchedDocs = fetchedDocs.sort((a, b) => {
           const numA = getBookNumber(a.title);
           const numB = getBookNumber(b.title);
           if (numA !== Infinity && numB !== Infinity) return numA - numB;
-          if (numA !== Infinity) return -1;
-          if (numB !== Infinity) return 1;
-          return 0;
+          return 0; // Si no tienen número, mantener orden de fecha (el query ya lo trae por fecha)
         });
 
         setDocs(fetchedDocs);
@@ -125,15 +138,35 @@ export default function BibliotecaPage() {
     return () => unsub();
   }, [router]);
 
+  // 3. LÓGICA DE CARPETAS (Detecta categorías automáticamente)
+  const categories = useMemo(() => {
+    const cats = new Set(docs.map(d => d.category || "General"));
+    return ["Todos", ...Array.from(cats).sort()];
+  }, [docs]);
+
+  // 4. FILTRADO
+  const term = searchTerm.toLowerCase();
+  
+  const filteredDocs = docs.filter((d) => {
+    const matchesSearch = (d.title || "").toLowerCase().includes(term);
+    const matchesCategory = selectedCategory === "Todos" 
+        ? true 
+        : (d.category || "General") === selectedCategory;
+    
+    return matchesSearch && matchesCategory;
+  });
+
+  const filteredPrivate = filteredDocs.filter((d) => !d.isPublic);
+  const filteredPublic = filteredDocs.filter((d) => d.isPublic);
+
+
+  // ACCIONES
   const toggleFavorite = async (item: DocItem) => {
     if (!userId) return alert("Inicia sesión para guardar en tu estante.");
     const isSaved = savedBookIds.includes(item.id);
     
-    if (isSaved) {
-        setSavedBookIds(prev => prev.filter(id => id !== item.id));
-    } else {
-        setSavedBookIds(prev => [...prev, item.id]);
-    }
+    // Optimistic UI (Actualiza visualmente antes de esperar a la base de datos)
+    setSavedBookIds(prev => isSaved ? prev.filter(id => id !== item.id) : [...prev, item.id]);
 
     try {
         if (isSaved) {
@@ -142,59 +175,34 @@ export default function BibliotecaPage() {
             snap.forEach(async (d) => { await deleteDoc(doc(db, "user_favorites", d.id)); });
         } else {
             await addDoc(collection(db, "user_favorites"), {
-                userId,
-                contentId: item.id,
-                type: "book",
-                title: item.title,
-                coverUrl: item.coverUrl || "",
-                createdAt: serverTimestamp()
+                userId, contentId: item.id, type: "book", title: item.title, coverUrl: item.coverUrl || "", createdAt: serverTimestamp()
             });
         }
     } catch (error) {
-        if (isSaved) setSavedBookIds(prev => [...prev, item.id]);
-        else setSavedBookIds(prev => prev.filter(id => id !== item.id));
+        // Revertir si falla
+        setSavedBookIds(prev => isSaved ? [...prev, item.id] : prev.filter(id => id !== item.id));
     }
   };
 
-  // --- 3. FUNCIÓN DE NOTIFICACIONES "BLINDADA" ---
   const handleEnableNotifications = async () => {
-    if (!("Notification" in window)) {
-        alert("Tu navegador no soporta notificaciones.");
-        return;
-    }
-
-    // A. Pedimos permiso primero
+    if (!("Notification" in window)) return alert("Tu navegador no soporta notificaciones.");
+    
     const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
-        alert("⚠️ Permiso bloqueado. Toca el candado 🔒 junto a la URL y selecciona 'Permitir' en Notificaciones.");
-        return;
-    }
+    if (permission !== "granted") return alert("⚠️ Permiso bloqueado. Toca el candado 🔒 y permite las notificaciones.");
 
     try {
-        // B. Mensaje de bienvenida local
         new Notification("¡Bienvenido a la Biblioteca!", {
-            body: "Configurando sistema de alertas...",
-            icon: "/icon-192.png",
-            // @ts-ignore
-            vibrate: [200, 100, 200]
+            body: "Avisos activados correctamente.", icon: "/icon-192.png"
         });
 
-        // C. OBTENER TOKEN (FORZANDO EL SERVICE WORKER)
-        // Esto arregla el error "bad-precaching" porque registra un SW limpio
         let registration;
         try {
-            // Intentamos registrar el SW explícitamente
             if ('serviceWorker' in navigator) {
                 registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-                console.log("Service Worker registrado manualmente:", registration);
             }
-        } catch (swError) {
-            console.warn("No se pudo registrar SW manual, intentando automático...", swError);
-        }
+        } catch (e) { console.warn("SW registration issue", e); }
 
         const messaging = getMessaging();
-        
-        // Pasamos el registro al getToken para asegurar que use el correcto
         const token = await getToken(messaging, { 
             vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E",
             serviceWorkerRegistration: registration 
@@ -202,57 +210,38 @@ export default function BibliotecaPage() {
         
         if (token) {
             await setDoc(doc(db, "fcm_tokens", token), {
-                token: token,
-                email: userEmail || "anonimo",
-                createdAt: serverTimestamp(),
-                lastActive: serverTimestamp(),
-                device: navigator.userAgent // Guardamos info del dispositivo para depurar
+                token, email: userEmail || "anonimo", createdAt: serverTimestamp(), lastActive: serverTimestamp(), device: navigator.userAgent
             });
-            alert("✅ ¡Avisos activados con éxito! El sistema te reconocerá automáticamente.");
-        } else {
-            alert("No se pudo generar el token. Intenta recargar la página.");
+            alert("✅ ¡Avisos activados con éxito!");
         }
-
-    } catch (error: any) {
-        console.error("Error CRÍTICO activando notificaciones:", error);
-        // Si el error es por falta de SW, avisamos
-        if (error.code === 'messaging/failed-service-worker-registration' || error.message?.includes('Registration failed')) {
-             alert("Error de conexión con el sistema de alertas. Por favor, recarga la página completamente.");
-        } else {
-             alert(`Error técnico: ${error.message}`);
-        }
+    } catch (error) {
+        console.error(error);
+        alert("Error técnico al activar avisos. Intenta recargar.");
     }
   };
-
-  const term = searchTerm.toLowerCase();
-  const filteredPrivate = docs.filter((d) => !d.isPublic && (d.title || "").toLowerCase().includes(term));
-  const filteredPublic = docs.filter((d) => d.isPublic && (d.title || "").toLowerCase().includes(term));
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
 
+      {/* --- BANNER INTELIGENTE --- */}
       {ultimoAviso && (
-        <div className="fixed top-24 left-0 right-0 z-50 px-4 animate-in slide-in-from-top-4 duration-700">
-            <div className="max-w-md mx-auto bg-amber-600/95 backdrop-blur-md text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center justify-between border-2 border-white/20">
+        <div className="fixed top-24 left-0 right-0 z-50 px-4 animate-in slide-in-from-top-4 duration-700 pointer-events-none">
+            <div className="max-w-md mx-auto bg-amber-600/95 backdrop-blur-md text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center justify-between border-2 border-white/20 pointer-events-auto">
                 <div className="flex items-center gap-3">
                     <span className="text-xl">✨</span>
                     <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-amber-100 tracking-widest">Recién agregado</span>
-                        <span className="text-sm font-bold leading-tight line-clamp-1">{ultimoAviso}</span>
+                        <span className="text-[10px] uppercase font-bold text-amber-100 tracking-widest">Novedad</span>
+                        <span className="text-sm font-bold leading-tight line-clamp-1">{ultimoAviso.title}</span>
                     </div>
                 </div>
-                <button onClick={() => setUltimoAviso(null)} className="ml-4 p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors">✕</button>
+                <button onClick={cerrarAviso} className="ml-4 p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors">✕</button>
             </div>
         </div>
       )}
 
-      <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-8 sm:pb-12 text-center animate-in">
-        <div className="flex justify-center items-center gap-6 mb-8 sm:mb-10">
-          <div className="h-px w-12 sm:w-16 bg-gradient-to-r from-transparent to-amber-200"></div>
-          <img src="/icon-512.png" className="w-12 h-12 sm:w-14 sm:h-14 grayscale opacity-40" alt="Logo" />
-          <div className="h-px w-12 sm:w-16 bg-gradient-to-l from-transparent to-amber-200"></div>
-        </div>
+      {/* --- HERO SECTION --- */}
+      <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-8 sm:pb-10 text-center animate-in">
         <h1 className="text-4xl sm:text-5xl md:text-8xl font-bold text-gray-900 mb-6 tracking-tighter leading-none">
           Sala de Estudio
         </h1>
@@ -260,131 +249,130 @@ export default function BibliotecaPage() {
           Obra literaria y espiritual de Jose Enrique Perez Leon
         </p>
 
-        <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-            <button 
-              onClick={() => setShowInstallModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-md border border-amber-200 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-amber-800 shadow-sm hover:bg-amber-50 hover:scale-105 transition-all"
-            >
+        <div className="flex flex-wrap justify-center gap-3 mb-8">
+            <button onClick={() => setShowInstallModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-white/80 border border-amber-200 rounded-full text-[10px] font-bold uppercase tracking-widest text-amber-800 hover:scale-105 transition-all">
               <span className="text-lg">📲</span> Instalar App
             </button>
-            
-            <button 
-              onClick={handleEnableNotifications}
-              className="flex items-center gap-2 px-5 py-2.5 bg-black/5 backdrop-blur-md border border-gray-200 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-gray-700 shadow-sm hover:bg-black hover:text-white hover:scale-105 transition-all"
-            >
+            <button onClick={handleEnableNotifications} className="flex items-center gap-2 px-5 py-2.5 bg-black/5 border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-widest text-gray-700 hover:bg-black hover:text-white hover:scale-105 transition-all">
               <span className="text-lg">🔔</span> Activar Avisos
             </button>
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-6 pb-12 sticky top-4 z-40">
+      {/* --- BUSCADOR Y FILTROS --- */}
+      <section className="max-w-6xl mx-auto px-6 pb-8 sticky top-4 z-40 space-y-4">
+        {/* Input Buscador */}
         <div className="relative max-w-xl mx-auto">
-          <div className="relative backdrop-blur-xl bg-white/60 p-2 rounded-full border border-white shadow-2xl">
+          <div className="relative backdrop-blur-xl bg-white/80 p-1.5 rounded-full border border-white shadow-xl ring-1 ring-black/5">
             <input
               type="text"
-              placeholder="Buscar por título, año o tema..."
-              className="w-full pl-14 pr-8 py-4 sm:py-5 bg-white rounded-full shadow-inner focus:ring-2 focus:ring-amber-200 outline-none transition-all font-sans text-sm"
+              placeholder="Buscar título..."
+              className="w-full pl-12 pr-6 py-3 bg-transparent rounded-full focus:bg-white focus:ring-2 focus:ring-amber-200 outline-none transition-all font-sans text-sm placeholder:text-gray-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <span className="absolute left-7 top-6 sm:top-7 text-amber-400/60 text-xl">🔍</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-6 pb-20">
-        <div className="flex items-center justify-between mb-12 sm:mb-16 border-b border-amber-100 pb-6 sm:pb-8">
-          <div className="space-y-1">
-            <h3 className="text-[11px] sm:text-[12px] uppercase tracking-[0.6em] font-black text-gray-400">Colección Editorial</h3>
-            <p className="text-[9px] sm:text-[10px] text-amber-600/60 font-bold uppercase tracking-widest italic">Acceso restringido para formación</p>
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-amber-500/50 text-lg">🔍</span>
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-20 italic text-gray-400">Consultando archivos...</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-24 sm:gap-y-32 gap-x-12 sm:gap-x-16">
-            {filteredPrivate.map((d, index) => {
-              const hasAccess = d.authorizedEmails?.includes(userEmail || "");
-              const alreadyRequested = requestedBookIds.includes(d.id);
-              const isSaved = savedBookIds.includes(d.id);
-              
-              return (
-                <BookCard
-                  key={d.id}
-                  doc={d}
-                  index={index}
-                  hasAccess={hasAccess}
-                  alreadyRequested={alreadyRequested}
-                  userEmail={userEmail}
-                  isSaved={isSaved}
-                  onToggleFavorite={() => toggleFavorite(d)}
-                />
-              );
-            })}
-          </div>
+        {/* --- CARPETAS / CATEGORÍAS (Horizontal Scroll) --- */}
+        {categories.length > 1 && (
+            <div className="flex justify-center overflow-x-auto pb-2 no-scrollbar">
+                <div className="flex gap-2 px-4 py-2 bg-white/60 backdrop-blur-md rounded-2xl border border-white/50 shadow-sm">
+                    {categories.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-4 py-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                                selectedCategory === cat 
+                                ? "bg-black text-white shadow-lg scale-105" 
+                                : "bg-transparent text-gray-500 hover:bg-amber-100 hover:text-amber-800"
+                            }`}
+                        >
+                            {cat === "Todos" ? "📚 Ver Todo" : cat}
+                        </button>
+                    ))}
+                </div>
+            </div>
         )}
       </section>
 
-      {filteredPublic.length > 0 && (
-        <section className="max-w-7xl mx-auto px-6 pb-32 mt-16 sm:mt-20">
-          <div className="flex items-center justify-between mb-12 sm:mb-16 border-b border-gray-200 pb-6 sm:pb-8">
-            <div className="space-y-1">
-              <h3 className="text-[11px] sm:text-[12px] uppercase tracking-[0.6em] font-black text-gray-400">Historia y Legado</h3>
-              <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest italic">Documentos de interés público</p>
-            </div>
+      {/* --- CONTENIDO PRINCIPAL --- */}
+      <section className="max-w-7xl mx-auto px-6 pb-20">
+        
+        {loading ? (
+          <div className="flex flex-col items-center py-20 opacity-50">
+            <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4"></div>
+            <p className="text-xs uppercase tracking-widest">Cargando biblioteca...</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-24 sm:gap-y-32 gap-x-12 sm:gap-x-16">
-            {filteredPublic.map((d, index) => {
-                  const isSaved = savedBookIds.includes(d.id);
-                  return (
-                   <BookCard
-                     key={d.id}
-                     doc={d}
-                     index={index}
-                     hasAccess={true}
-                     alreadyRequested={false}
-                     userEmail={userEmail}
-                     isSaved={isSaved}
-                     onToggleFavorite={() => toggleFavorite(d)}
-                   />
-                  )
-            })}
-          </div>
-        </section>
-      )}
+        ) : (
+          <>
+            {/* SECCIÓN PRIVADA */}
+            {filteredPrivate.length > 0 && (
+                <div className="mb-16">
+                    <div className="flex items-center gap-4 mb-8">
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
+                            {selectedCategory === "Todos" ? "Colección Privada" : selectedCategory}
+                        </h3>
+                        <div className="h-px flex-1 bg-amber-100"></div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-16 gap-x-12">
+                        {filteredPrivate.map((d, i) => (
+                            <BookCard 
+                                key={d.id} doc={d} index={i} 
+                                hasAccess={d.authorizedEmails?.includes(userEmail || "")}
+                                alreadyRequested={requestedBookIds.includes(d.id)}
+                                userEmail={userEmail} isSaved={savedBookIds.includes(d.id)}
+                                onToggleFavorite={() => toggleFavorite(d)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
 
-      <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-24 sm:py-32 text-center">
-        <img src="/icon-512.png" className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-8 sm:mb-10 grayscale opacity-20" alt="" />
-        <p className="text-[11px] sm:text-[12px] uppercase tracking-[0.8em] text-gray-400 font-bold mb-6 sm:mb-8">Jose Enrique Perez Leon</p>
-        <p className="text-[9px] sm:text-[10px] text-gray-300 italic">Protección de derechos RV1909</p>
+            {/* SECCIÓN PÚBLICA */}
+            {filteredPublic.length > 0 && (
+                <div>
+                     <div className="flex items-center gap-4 mb-8">
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
+                           Documentos Públicos
+                        </h3>
+                        <div className="h-px flex-1 bg-gray-200"></div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-16 gap-x-12">
+                        {filteredPublic.map((d, i) => (
+                            <BookCard 
+                                key={d.id} doc={d} index={i} hasAccess={true} alreadyRequested={false}
+                                userEmail={userEmail} isSaved={savedBookIds.includes(d.id)}
+                                onToggleFavorite={() => toggleFavorite(d)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {filteredPrivate.length === 0 && filteredPublic.length === 0 && (
+                <div className="text-center py-20 text-gray-400">
+                    <p>No se encontraron documentos en esta carpeta.</p>
+                    <button onClick={() => setSelectedCategory("Todos")} className="mt-4 text-amber-600 underline text-sm">Ver todo</button>
+                </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-24 text-center">
+        <img src="/icon-512.png" className="w-12 h-12 mx-auto mb-6 grayscale opacity-20" alt="" />
+        <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Jose Enrique Perez Leon</p>
       </footer>
 
-      <InstallGuideModal 
-        isOpen={showInstallModal} 
-        onClose={() => setShowInstallModal(false)} 
-      />
+      <InstallGuideModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
     </main>
   );
 }
 
-function BookCard({
-  doc,
-  index,
-  hasAccess,
-  alreadyRequested,
-  userEmail,
-  isSaved,
-  onToggleFavorite
-}: {
-  doc: DocItem;
-  index: number;
-  hasAccess: boolean | undefined;
-  alreadyRequested: boolean;
-  userEmail: string | null;
-  isSaved: boolean;
-  onToggleFavorite: () => void;
-}) {
+// --- SUBCOMPONENTE DE TARJETA (OPTIMIZADO) ---
+function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved, onToggleFavorite }: any) {
   const [showModal, setShowModal] = useState(false);
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
@@ -395,96 +383,85 @@ function BookCard({
     setSending(true);
     try {
       await addDoc(collection(db, "requests"), {
-        bookTitle: doc.title,
-        bookId: doc.id,
-        userEmail: userEmail,
-        whatsapp: phone,
-        status: "pendiente",
-        createdAt: serverTimestamp(),
+        bookTitle: doc.title, bookId: doc.id, userEmail: userEmail, whatsapp: phone, status: "pendiente", createdAt: serverTimestamp(),
       });
-      alert("✅ ¡Solicitud Enviada!\n\nPor favor, espera a que el administrador active tu acceso. Si es necesario, envía tu comprobante de pago por WhatsApp.");
+      alert("✅ ¡Solicitud Enviada! Espera la activación.");
       setLocalRequested(true);
       setShowModal(false);
-      setPhone("");
-    } catch {
-      alert("Error al enviar la solicitud.");
-    } finally {
-      setSending(false);
-    }
+    } catch { alert("Error al enviar."); } 
+    finally { setSending(false); }
   };
 
   return (
-    <div className="group flex flex-col items-center animate-in" style={{ animationDelay: `${index * 100}ms` }}>
-      <div className={`relative w-56 sm:w-64 h-72 sm:h-80 transition-all duration-1000 ${hasAccess ? "group-hover:-translate-y-6 group-hover:rotate-3 group-hover:scale-105" : "opacity-80"}`}>
-        
-        {userEmail && (
-            <button
-                onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
-                className={`absolute -right-4 -top-4 z-40 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-90 ${
-                    isSaved ? "bg-amber-500 text-white" : "bg-white text-gray-300 hover:text-amber-500"
-                }`}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
-                </svg>
-            </button>
-        )}
+    <div className="group relative flex flex-col items-center animate-in fade-in zoom-in duration-700" style={{ animationDelay: `${index * 50}ms` }}>
+        {/* CONTENEDOR PORTADA */}
+        <div className={`relative w-48 sm:w-56 aspect-[2/3] transition-all duration-500 ${hasAccess ? 'group-hover:-translate-y-4 group-hover:shadow-2xl' : 'opacity-80 grayscale-[0.5]'}`}>
+            
+            {/* BOTÓN FAVORITO FLOTANTE */}
+            {userEmail && (
+                <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} className={`absolute -right-3 -top-3 z-20 p-2.5 rounded-full shadow-lg transition-transform hover:scale-110 ${isSaved ? "bg-amber-500 text-white" : "bg-white text-gray-300"}`}>
+                    <svg className="w-4 h-4" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+                </button>
+            )}
 
-        {!hasAccess && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] rounded-r-2xl">
-            <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 border border-white/20"><span className="text-2xl text-white">🔒</span></div>
-            <span className="text-[8px] font-black text-white uppercase tracking-[0.4em]">Contenido Protegido</span>
-          </div>
-        )}
+            {/* CANDADO */}
+            {!hasAccess && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-r-lg">
+                    <span className="text-3xl">🔒</span>
+                </div>
+            )}
 
-        {doc.coverUrl ? (
-          <div className="relative w-full h-full rounded-r-2xl shadow-2xl overflow-hidden border-l-[10px] border-black">
-            <img src={doc.coverUrl} alt={doc.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
-          </div>
-        ) : (
-          <div className="relative w-full h-full bg-[#121212] rounded-r-2xl shadow-2xl border-l-[12px] border-black overflow-hidden flex flex-col justify-between p-8 sm:p-10 text-center">
-            <h4 className="text-white text-sm sm:text-base font-bold leading-relaxed line-clamp-4">{doc.title}</h4>
-            <img src="/icon-512.png" className="w-6 h-6 mx-auto opacity-30" alt="" />
-          </div>
-        )}
-      </div>
-
-      <div className="mt-10 sm:mt-14 text-center w-full max-w-[260px] sm:max-w-[280px] space-y-4 sm:space-y-6">
-        <h3 className="text-gray-900 font-black text-lg sm:text-xl h-12 sm:h-14 line-clamp-2 tracking-tighter">{doc.title}</h3>
-
-        {hasAccess ? (
-          <Link href={`/documentos/${doc.id}`} className="inline-flex items-center justify-center w-full py-4 sm:py-5 bg-black text-white text-[10px] sm:text-[11px] font-black uppercase tracking-[0.4em] rounded-full hover:bg-amber-600 transition-all shadow-xl">
-            Iniciar Lectura
-          </Link>
-        ) : localRequested ? (
-          <div className="w-full py-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col items-center justify-center gap-1">
-              <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Solicitud Enviada</span>
-              <span className="text-[8px] text-amber-600/70 font-bold">Espera activación</span>
-          </div>
-        ) : (
-          <button onClick={() => setShowModal(true)} className="w-full py-4 sm:py-5 bg-white text-amber-600 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] rounded-full border-2 border-amber-100 hover:bg-amber-50 transition-all shadow-lg">
-            Solicitar Acceso
-          </button>
-        )}
-      </div>
-
-      {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[2.5rem] p-8 sm:p-10 max-w-sm w-full shadow-2xl">
-            <form onSubmit={handleRequest} className="space-y-5">
-              <h3 className="text-center font-bold text-gray-900">Solicitar Volumen</h3>
-              <div className="space-y-2">
-                <label className="text-[9px] font-bold uppercase text-gray-400 pl-2">Tu WhatsApp</label>
-                <input required type="tel" placeholder="Ej: 55 1234 5678" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-[#fcfaf7] border border-amber-100 rounded-2xl px-5 py-3 text-sm outline-none focus:border-black transition-colors" />
-              </div>
-              <button type="submit" disabled={sending || !userEmail} className="w-full py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-[0.4em] hover:bg-green-600 transition-colors">
-                {sending ? "Enviando..." : "Enviar Solicitud"}
-              </button>
-              <button type="button" onClick={() => setShowModal(false)} className="w-full text-[9px] uppercase tracking-widest text-gray-300 font-bold hover:text-red-400 transition-colors">Cancelar</button>
-            </form>
-          </div>
+            {/* IMAGEN */}
+            {doc.coverUrl ? (
+                <img src={doc.coverUrl} className="w-full h-full object-cover rounded-r-xl shadow-xl border-l-4 border-black/80" alt={doc.title} />
+            ) : (
+                <div className="w-full h-full bg-neutral-900 rounded-r-xl border-l-4 border-black/80 flex items-center justify-center p-6 text-center">
+                    <span className="text-white/50 text-xs font-bold">{doc.title}</span>
+                </div>
+            )}
         </div>
-      )}
+
+        {/* INFO Y BOTONES */}
+        <div className="mt-6 text-center w-full max-w-[200px] space-y-3">
+            <h3 className="text-gray-900 font-bold text-sm leading-tight line-clamp-2 h-10">{doc.title}</h3>
+            
+            {/* ETIQUETA DE CARPETA */}
+            {doc.category && (
+                <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] uppercase tracking-wider rounded-md mb-2">
+                    {doc.category}
+                </span>
+            )}
+
+            {hasAccess ? (
+                <Link href={`/documentos/${doc.id}`} className="block w-full py-2.5 bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-full hover:bg-amber-600 transition-colors shadow-lg">
+                    Leer Ahora
+                </Link>
+            ) : localRequested ? (
+                <div className="w-full py-2 bg-amber-50 border border-amber-200 rounded-lg text-[9px] font-bold text-amber-700 uppercase tracking-widest">
+                    ⏳ Pendiente
+                </div>
+            ) : (
+                <button onClick={() => setShowModal(true)} className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold uppercase tracking-widest rounded-full hover:border-amber-400 hover:text-amber-600 transition-colors">
+                    Solicitar
+                </button>
+            )}
+        </div>
+
+        {/* MODAL DE SOLICITUD */}
+        {showModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+                    <h3 className="text-center font-bold text-gray-900 mb-6">Solicitar Acceso</h3>
+                    <form onSubmit={handleRequest} className="space-y-4">
+                        <input required type="tel" placeholder="Tu WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-black" />
+                        <button type="submit" disabled={sending} className="w-full py-3 bg-black text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-green-600 transition-colors">
+                            {sending ? "Enviando..." : "Enviar"}
+                        </button>
+                        <button type="button" onClick={() => setShowModal(false)} className="w-full py-2 text-xs text-gray-400 font-bold hover:text-red-500">Cancelar</button>
+                    </form>
+                </div>
+            </div>
+        )}
     </div>
   );
 }

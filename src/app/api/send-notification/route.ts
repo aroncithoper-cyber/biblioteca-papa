@@ -5,53 +5,49 @@ export async function POST(request: Request) {
   try {
     const { title, body } = await request.json();
 
-    // 1. Buscamos los tokens en Firestore
-    // Aseguramos que busque en la colección correcta
     const tokensSnapshot = await adminDb.collection("fcm_tokens").get();
-    
-    // Convertimos y limpiamos la lista
     const tokens = tokensSnapshot.docs
       .map((doc) => doc.data().token)
-      .filter((token) => token && typeof token === 'string' && token.length > 10);
-
-    // Diagnóstico en consola (lo verás en los logs de Vercel)
-    console.log(`🔍 Diagnóstico: Encontrados ${tokens.length} tokens válidos en la base de datos.`);
+      .filter((token) => token);
 
     if (tokens.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
-        sentCount: 0, 
-        message: "La base de datos de tokens está vacía. Nadie se ha registrado aún." 
-      });
+      return NextResponse.json({ success: false, sentCount: 0 });
     }
 
-    // 2. Preparamos el mensaje
+    // CONFIGURACIÓN MEJORADA PARA FORZAR EL "BIP"
     const message = {
-      notification: {
-        title: title,
-        body: body,
-      },
+      notification: { title, body },
       tokens: tokens,
+      // Esto es para Android: Fuerza que suene y despierte
+      android: {
+        priority: "high" as const,
+        notification: {
+          sound: "default",
+          clickAction: "FLUTTER_NOTIFICATION_CLICK", // Ayuda a que al picar abra la app
+        },
+      },
+      // Esto es para iPhone/Web: Prioridad máxima
+      webpush: {
+        headers: {
+          Urgency: "high",
+        },
+        notification: {
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          requireInteraction: true, // La notificación no se quita hasta que el usuario la vea
+        }
+      }
     };
 
-    // 3. Enviamos
     const response = await adminMessaging.sendEachForMulticast(message);
-
-    console.log(`✅ Resultado del envío: ${response.successCount} éxitos, ${response.failureCount} fallos.`);
-
-    // Opcional: Limpiar tokens viejos que dieron error
-    if (response.failureCount > 0) {
-       console.log("⚠️ Se detectaron tokens inválidos. (Pendiente de limpieza)");
-    }
 
     return NextResponse.json({ 
       success: true, 
-      sentCount: response.successCount,
-      failureCount: response.failureCount
+      sentCount: response.successCount 
     });
 
   } catch (error: any) {
-    console.error("❌ ERROR CRÍTICO EN API:", error);
+    console.error("ERROR:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

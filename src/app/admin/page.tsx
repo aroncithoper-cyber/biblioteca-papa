@@ -20,7 +20,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 
-// Helper para extraer ID de YouTube
+// Helper para YouTube
 const getYouTubeID = (url: string) => {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
@@ -33,34 +33,31 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   
-  // Datos
   const [docs, setDocs] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]); 
   const [videos, setVideos] = useState<any[]>([]); 
-  
   const [userEmailToAuthorize, setUserEmailToAuthorize] = useState<{ [key: string]: string }>({});
   const router = useRouter();
 
   // Estados Documentos
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState(""); // NUEVO: Categoría
   const [file, setFile] = useState<File | null>(null);
   const [cover, setCover] = useState<File | null>(null);
   const [isPublic, setIsPublic] = useState(false);
 
-  // Estados Galería
+  // Estados Galería y Videos
   const [galleryFile, setGalleryFile] = useState<File | null>(null);
   const [galleryDesc, setGalleryDesc] = useState("");
-
-  // Estados Videos
   const [vidTitle, setVidTitle] = useState("");
   const [vidDesc, setVidDesc] = useState("");
   const [vidLink, setVidLink] = useState("");
 
-  // ESTADOS NOTIFICACIONES (NUEVO)
+  // Estados Notificaciones
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
 
-  // Estado Edición
+  // Edición
   const [editingDoc, setEditingDoc] = useState<any>(null);
 
   useEffect(() => {
@@ -78,27 +75,20 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      // 1. Cargar Libros
       const qDocs = query(collection(db, "documents"), orderBy("createdAt", "desc"));
       const snapDocs = await getDocs(qDocs);
       setDocs(snapDocs.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
 
-      // 2. Cargar Solicitudes
       const qReq = query(collection(db, "requests"), orderBy("createdAt", "desc"));
       const snapReq = await getDocs(qReq);
       setRequests(snapReq.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
 
-      // 3. Cargar Videos
       const qVids = query(collection(db, "videos"), orderBy("createdAt", "desc"));
       const snapVids = await getDocs(qVids);
       setVideos(snapVids.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-
-    } catch (e: any) {
-      console.error("Error cargando datos:", e);
-    }
+    } catch (e: any) { console.error("Error:", e); }
   };
 
-  // --- LOGICA DE LIBROS ---
   const handleUpdateDoc = async () => {
     if (!editingDoc) return;
     setLoading(true);
@@ -106,16 +96,14 @@ export default function AdminPage() {
       const docRef = doc(db, "documents", editingDoc.id);
       await updateDoc(docRef, {
         title: editingDoc.title,
-        isPublic: editingDoc.isPublic
+        isPublic: editingDoc.isPublic,
+        category: editingDoc.category || "General" // Guardamos la categoría editada
       });
       alert("✅ Libro actualizado correctamente");
       setEditingDoc(null);
       loadData();
-    } catch (e: any) {
-      alert("❌ Error al actualizar: " + e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { alert("Error: " + e.message); } 
+    finally { setLoading(false); }
   };
 
   const authorizeUser = async (docId: string, emailOverride?: string, requestId?: string) => {
@@ -136,54 +124,40 @@ export default function AdminPage() {
     setLoading(true);
     try {
       await updateDoc(doc(db, "documents", docId), { authorizedEmails: arrayUnion(email) });
-      
-      if (requestId) {
-        await deleteDoc(doc(db, "requests", requestId));
-      }
+      if (requestId) await deleteDoc(doc(db, "requests", requestId));
 
       if (phoneNumber) {
           const message = `¡Paz a vosotros! 🕊️\n\nTu solicitud para acceder al libro *"${bookTitle}"* ha sido APROBADA.\n\nYa puedes entrar a leerlo aquí:\nhttps://consejero-del-obrero.vercel.app/biblioteca\n\n¡Bendiciones!`;
           window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
       }
-
       alert(`✅ Acceso concedido a: ${email}`);
-      
       if(!emailOverride) setUserEmailToAuthorize({ ...userEmailToAuthorize, [docId]: "" });
       loadData();
-    } catch (e: any) { 
-        alert("❌ Error al autorizar: " + e.message);
-    } finally { setLoading(false); }
+    } catch (e: any) { alert("Error: " + e.message); } 
+    finally { setLoading(false); }
   };
 
   const revokeAccess = async (docId: string, email: string) => {
-    if (!confirm(`¿Estás seguro de quitar el acceso a: ${email}?`)) return;
+    if (!confirm(`¿Quitar acceso a: ${email}?`)) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, "documents", docId), {
-        authorizedEmails: arrayRemove(email)
-      });
-      alert("🚫 Acceso eliminado correctamente");
+      await updateDoc(doc(db, "documents", docId), { authorizedEmails: arrayRemove(email) });
       loadData();
-    } catch (e: any) {
-      alert("❌ Error: " + e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { alert("Error: " + e.message); } 
+    finally { setLoading(false); }
   };
 
   const rejectRequest = async (requestId: string) => {
-      if(!confirm("¿Borrar esta solicitud?")) return;
+      if(!confirm("¿Borrar solicitud?")) return;
       setLoading(true);
-      try {
-          await deleteDoc(doc(db, "requests", requestId));
-          loadData();
-      } catch(e: any) { alert("Error: " + e.message); }
+      try { await deleteDoc(doc(db, "requests", requestId)); loadData(); } 
+      catch(e: any) { alert("Error: " + e.message); }
       finally { setLoading(false); }
   };
 
   const uploadDoc = async () => {
-    if (!title.trim()) return alert("⚠️ Escribe un título para el libro");
-    if (!file) return alert("⚠️ No has seleccionado el archivo PDF");
+    if (!title.trim()) return alert("⚠️ Escribe un título");
+    if (!file) return alert("⚠️ Selecciona el PDF");
     
     setLoading(true);
     try {
@@ -206,22 +180,21 @@ export default function AdminPage() {
         coverUrl: coverUrl,
         storagePath: pdfPath,
         isPublic: isPublic,
+        category: category.trim() || "General", // Guardamos la categoría (o General por defecto)
         authorizedEmails: [],
         createdAt: serverTimestamp(),
       });
 
-      alert("🎉 ¡Libro publicado correctamente!");
-      setTitle(""); setFile(null); setCover(null); setIsPublic(false);
-      const pdfInput = document.getElementById("pdfInput") as HTMLInputElement;
-      const coverInput = document.getElementById("coverInput") as HTMLInputElement;
-      if(pdfInput) pdfInput.value = "";
-      if(coverInput) coverInput.value = "";
+      alert("🎉 ¡Libro publicado!");
+      setTitle(""); setCategory(""); setFile(null); setCover(null); setIsPublic(false);
+      
+      // Limpiar inputs
+      (document.getElementById("pdfInput") as HTMLInputElement).value = "";
+      (document.getElementById("coverInput") as HTMLInputElement).value = "";
+      
       loadData();
-    } catch (e: any) { 
-      alert("❌ ERROR AL SUBIR: " + e.message); 
-    } finally { 
-      setLoading(false); 
-    }
+    } catch (e: any) { alert("Error: " + e.message); } 
+    finally { setLoading(false); }
   };
 
   const uploadToGallery = async () => {
@@ -232,95 +205,61 @@ export default function AdminPage() {
       const imgRef = ref(storage, path);
       await uploadBytes(imgRef, galleryFile);
       const url = await getDownloadURL(imgRef);
-      
-      await addDoc(collection(db, "gallery"), { 
-        url, 
-        description: galleryDesc, 
-        createdAt: serverTimestamp() 
-      });
-      
-      alert("📸 Foto añadida a la galería");
+      await addDoc(collection(db, "gallery"), { url, description: galleryDesc, createdAt: serverTimestamp() });
+      alert("📸 Foto añadida");
       setGalleryFile(null); setGalleryDesc("");
-      const galInput = document.getElementById("galleryInput") as HTMLInputElement;
-      if(galInput) galInput.value = "";
+      (document.getElementById("galleryInput") as HTMLInputElement).value = "";
       loadData();
-    } catch (e: any) { 
-      alert("❌ Error en galería: " + e.message); 
-    } finally { setLoading(false); }
+    } catch (e: any) { alert("Error: " + e.message); } 
+    finally { setLoading(false); }
   };
 
   const uploadVideo = async () => {
-    if (!vidTitle.trim()) return alert("Falta el título del video");
-    if (!vidLink.trim()) return alert("Falta el link de YouTube");
-    
+    if (!vidTitle.trim() || !vidLink.trim()) return alert("Faltan datos del video");
     const youtubeId = getYouTubeID(vidLink);
-    if (!youtubeId) return alert("❌ Link de YouTube inválido");
+    if (!youtubeId) return alert("Link de YouTube inválido");
 
     setLoading(true);
     try {
       await addDoc(collection(db, "videos"), {
-        title: vidTitle,
-        description: vidDesc,
-        youtubeId: youtubeId,
-        createdAt: serverTimestamp()
+        title: vidTitle, description: vidDesc, youtubeId, createdAt: serverTimestamp()
       });
-      alert("🎥 Video agregado a Aprender");
+      alert("🎥 Video agregado");
       setVidTitle(""); setVidDesc(""); setVidLink("");
       loadData();
-    } catch (e: any) {
-      alert("Error: " + e.message);
-    } finally { setLoading(false); }
-  };
-
-  const deleteVideo = async (id: string) => {
-    if(!confirm("¿Borrar este video de la sección Aprender?")) return;
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, "videos", id));
-      loadData();
-    } catch(e: any) { alert("Error: " + e.message); }
+    } catch (e: any) { alert("Error: " + e.message); } 
     finally { setLoading(false); }
   };
 
-  // --- LOGICA DE ENVÍO DE NOTIFICACIONES ---
+  const deleteVideo = async (id: string) => {
+    if(!confirm("¿Borrar video?")) return;
+    setLoading(true);
+    try { await deleteDoc(doc(db, "videos", id)); loadData(); } 
+    catch(e: any) { alert("Error: " + e.message); }
+    finally { setLoading(false); }
+  };
+
   const sendPushNotification = async () => {
-    if (!notifTitle.trim() || !notifBody.trim()) {
-      return alert("⚠️ Escribe un título y un mensaje para enviar.");
-    }
-    
-    if (!confirm(`¿Estás seguro de enviar esta notificación a TODOS los suscritos?\n\n"${notifTitle}"`)) return;
+    if (!notifTitle.trim() || !notifBody.trim()) return alert("⚠️ Escribe título y mensaje.");
+    if (!confirm(`¿Enviar a TODOS?\n\n"${notifTitle}"`)) return;
 
     setLoading(true);
     try {
-      // Llamamos a nuestro API Route (que crearemos en el siguiente paso si no existe)
       const res = await fetch("/api/send-notification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: notifTitle, body: notifBody }),
       });
-
       const data = await res.json();
       if (res.ok) {
-        alert(`✅ Notificación enviada con éxito.\nDispositivos alcanzados: ${data.sentCount || 'N/A'}`);
-        setNotifTitle("");
-        setNotifBody("");
-      } else {
-        alert("❌ Error al enviar: " + (data.error || "Error desconocido"));
-      }
-    } catch (e: any) {
-      alert("❌ Error de conexión: " + e.message);
-    } finally {
-      setLoading(false);
-    }
+        alert(`✅ Enviado con éxito.\nDispositivos: ${data.sentCount || 0}`);
+        setNotifTitle(""); setNotifBody("");
+      } else { alert("Error: " + (data.error || "Desconocido")); }
+    } catch (e: any) { alert("Error conexión: " + e.message); } 
+    finally { setLoading(false); }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-[#fcfaf7] flex items-center justify-center">
-        <p className="font-serif italic text-gray-400 animate-pulse">Verificando acceso...</p>
-      </div>
-    );
-  }
+  if (!isAdmin) return <div className="min-h-screen bg-[#fcfaf7] flex items-center justify-center"><p className="animate-pulse">Verificando...</p></div>;
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20 relative">
@@ -331,13 +270,22 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
             <h3 className="text-xl font-bold mb-6 text-gray-900">Editar Libro</h3>
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
-                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Título del Libro</label>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Título</label>
                 <input 
                   value={editingDoc.title}
                   onChange={(e) => setEditingDoc({ ...editingDoc, title: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-2">Categoría (Carpeta)</label>
+                <input 
+                  value={editingDoc.category || ""}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, category: e.target.value })}
+                  placeholder="Ej: Ampliación, Himnario..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
                 />
               </div>
               <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
@@ -347,14 +295,11 @@ export default function AdminPage() {
                   onChange={(e) => setEditingDoc({ ...editingDoc, isPublic: e.target.checked })}
                   className="w-5 h-5 accent-amber-600 cursor-pointer"
                 />
-                <div>
-                  <span className="block text-sm font-bold text-gray-900">Hacer Público</span>
-                  <span className="text-[10px] text-gray-400">Si está marcado, todos pueden verlo sin permiso.</span>
-                </div>
+                <span className="text-sm font-bold text-gray-900">Hacer Público</span>
               </div>
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setEditingDoc(null)} className="flex-1 py-3 text-gray-500 font-bold text-xs uppercase hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
-                <button onClick={handleUpdateDoc} disabled={loading} className="flex-1 py-3 bg-black text-white font-bold text-xs uppercase rounded-xl hover:bg-amber-600 transition-colors shadow-lg">{loading ? "Guardando..." : "Guardar Cambios"}</button>
+                <button onClick={() => setEditingDoc(null)} className="flex-1 py-3 text-gray-500 font-bold text-xs uppercase hover:bg-gray-100 rounded-xl">Cancelar</button>
+                <button onClick={handleUpdateDoc} disabled={loading} className="flex-1 py-3 bg-black text-white font-bold text-xs uppercase rounded-xl hover:bg-amber-600 shadow-lg">{loading ? "..." : "Guardar"}</button>
               </div>
             </div>
           </div>
@@ -364,9 +309,8 @@ export default function AdminPage() {
       <section className="max-w-5xl mx-auto px-6 py-16">
         <h1 className="text-5xl font-bold text-gray-900 tracking-tighter mb-12 border-b border-amber-100 pb-10">Administración</h1>
 
-        {/* --- GRID SUPERIOR --- */}
         <div className="grid md:grid-cols-2 gap-10 mb-10">
-          {/* SECCIÓN 01: LIBROS */}
+          {/* SECCIÓN 01: NUEVO LIBRO */}
           <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-amber-50">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
                <span className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center text-[10px]">01</span>
@@ -374,6 +318,10 @@ export default function AdminPage() {
             </h2>
             <div className="space-y-4">
               <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título del Libro..." value={title} onChange={(e) => setTitle(e.target.value)} />
+              
+              {/* CAMPO NUEVO: CATEGORÍA */}
+              <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Ampliación de Lecciones)..." value={category} onChange={(e) => setCategory(e.target.value)} />
+
               <div className="grid grid-cols-2 gap-4">
                 <div className={`relative h-24 bg-[#fcfaf7] border-2 border-dashed ${file ? 'border-green-500 bg-green-50' : 'border-amber-100'} rounded-2xl flex flex-col items-center justify-center`}>
                   <input id="pdfInput" type="file" accept="application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
@@ -398,7 +346,7 @@ export default function AdminPage() {
           <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-amber-50">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-amber-700">
                <span className="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center text-[10px]">02</span>
-               Galería (Fotos)
+               Galería
             </h2>
             <div className="space-y-4">
               <div className="relative h-36 bg-amber-50/30 border-2 border-dashed border-amber-100 rounded-[2rem] flex flex-col items-center justify-center">
@@ -407,39 +355,35 @@ export default function AdminPage() {
               </div>
               <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción..." value={galleryDesc} onChange={(e)=>setGalleryDesc(e.target.value)} />
               <button onClick={uploadToGallery} disabled={loading} className="w-full py-4 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
-                {loading ? "Guardando..." : "Añadir a Galería"}
+                {loading ? "..." : "Añadir a Galería"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* --- GRID MEDIO: VIDEOS Y NOTIFICACIONES --- */}
+        {/* --- GRID MEDIO --- */}
         <div className="grid md:grid-cols-2 gap-10 mb-20">
-            
             {/* SECCIÓN 03: VIDEOS */}
             <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-red-50">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-red-700">
                     <span className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px]">03</span>
-                    Videos para "Aprender"
+                    Videos
                 </h2>
                 <div className="space-y-4">
                     <div className="space-y-4">
-                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título del Video" value={vidTitle} onChange={(e)=>setVidTitle(e.target.value)} />
-                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción breve" value={vidDesc} onChange={(e)=>setVidDesc(e.target.value)} />
+                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título" value={vidTitle} onChange={(e)=>setVidTitle(e.target.value)} />
+                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción" value={vidDesc} onChange={(e)=>setVidDesc(e.target.value)} />
                         <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Link de YouTube" value={vidLink} onChange={(e)=>setVidLink(e.target.value)} />
                         <button onClick={uploadVideo} disabled={loading} className="w-full py-4 bg-red-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
-                            {loading ? "Guardando..." : "Agregar Video"}
+                            {loading ? "..." : "Agregar Video"}
                         </button>
                     </div>
                     <div className="bg-[#fcfaf7] rounded-2xl p-4 h-48 overflow-y-auto custom-scrollbar">
-                        <h3 className="text-[10px] font-bold uppercase text-gray-400 mb-4">Videos Publicados</h3>
                         <div className="space-y-3">
                             {videos.map(v => (
                                 <div key={v.id} className="bg-white p-3 rounded-xl border border-gray-100 flex gap-3 items-center shadow-sm">
                                     <img src={`https://img.youtube.com/vi/${v.youtubeId}/default.jpg`} className="w-10 h-10 rounded object-cover" alt="" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold truncate">{v.title}</p>
-                                    </div>
+                                    <p className="text-xs font-bold truncate flex-1">{v.title}</p>
                                     <button onClick={()=>deleteVideo(v.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full font-bold text-xs">✕</button>
                                 </div>
                             ))}
@@ -448,48 +392,27 @@ export default function AdminPage() {
                 </div>
             </div>
 
-            {/* SECCIÓN 04: CENTRO DE NOTIFICACIONES (NUEVO) */}
+            {/* SECCIÓN 04: NOTIFICACIONES */}
             <div className="bg-gradient-to-br from-indigo-900 to-blue-900 rounded-[3rem] p-8 shadow-2xl text-white">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
                     <span className="w-8 h-8 bg-white text-indigo-900 rounded-full flex items-center justify-center text-[10px]">04</span>
                     Enviar Notificación
                 </h2>
                 <div className="space-y-5">
-                    <p className="text-xs text-blue-200 leading-relaxed">
-                        Envía un mensaje a todos los dispositivos que tienen activadas las notificaciones. Úsalo para anunciar nuevos libros.
-                    </p>
-                    <input 
-                        className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none focus:bg-white/20" 
-                        placeholder="Título (Ej: ¡Nuevo Libro!)" 
-                        value={notifTitle} 
-                        onChange={(e)=>setNotifTitle(e.target.value)} 
-                    />
-                    <textarea 
-                        className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none focus:bg-white/20 h-32 resize-none" 
-                        placeholder="Mensaje (Ej: Ya está disponible el volumen 5...)" 
-                        value={notifBody} 
-                        onChange={(e)=>setNotifBody(e.target.value)} 
-                    />
-                    <button 
-                        onClick={sendPushNotification} 
-                        disabled={loading} 
-                        className="w-full py-4 bg-white text-indigo-900 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all shadow-lg flex items-center justify-center gap-2"
-                    >
-                        {loading ? "Enviando..." : (
-                           <>
-                             <span>🚀</span> Enviar a Todos
-                           </>
-                        )}
+                    <input className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none" placeholder="Título" value={notifTitle} onChange={(e)=>setNotifTitle(e.target.value)} />
+                    <textarea className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none h-32 resize-none" placeholder="Mensaje" value={notifBody} onChange={(e)=>setNotifBody(e.target.value)} />
+                    <button onClick={sendPushNotification} disabled={loading} className="w-full py-4 bg-white text-indigo-900 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all shadow-lg flex items-center justify-center gap-2">
+                        {loading ? "..." : <><span>🚀</span> Enviar a Todos</>}
                     </button>
                 </div>
             </div>
         </div>
 
-        {/* --- SECCIÓN 05: SOLICITUDES --- */}
+        {/* --- LISTADO DE LIBROS Y SOLICITUDES --- */}
         {requests.length > 0 && (
-          <div className="mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="mb-20">
             <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 mb-8 flex items-center gap-4">
-              Solicitudes Pendientes <span className="h-px flex-1 bg-amber-100"></span>
+              Solicitudes <span className="h-px flex-1 bg-amber-100"></span>
             </h3>
             <div className="grid gap-4">
               {requests.map((req) => (
@@ -498,15 +421,13 @@ export default function AdminPage() {
                     <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold text-xs">?</div>
                     <div>
                       <p className="font-bold text-gray-900">{req.userEmail}</p>
-                      <p className="text-[10px] uppercase tracking-widest text-amber-600">
-                        Solicita leer: <span className="font-bold">{req.bookTitle}</span>
-                      </p>
+                      <p className="text-[10px] uppercase tracking-widest text-amber-600">Libro: {req.bookTitle}</p>
                       {req.whatsapp && <p className="text-[9px] text-green-600 font-bold">📞 {req.whatsapp}</p>}
                     </div>
                   </div>
-                  <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={() => authorizeUser(req.bookId, req.userEmail, req.id)} className="flex-1 md:flex-none px-6 py-3 bg-green-600 text-white rounded-full text-[9px] font-bold uppercase tracking-widest hover:bg-green-700 transition-colors shadow-lg">Dar Acceso</button>
-                    <button onClick={() => rejectRequest(req.id)} className="flex-1 md:flex-none px-6 py-3 bg-white text-gray-400 border border-gray-200 rounded-full text-[9px] font-bold uppercase tracking-widest hover:bg-red-50 hover:text-red-500 transition-colors">Ignorar</button>
+                  <div className="flex gap-2">
+                    <button onClick={() => authorizeUser(req.bookId, req.userEmail, req.id)} className="px-6 py-3 bg-green-600 text-white rounded-full text-[9px] font-bold uppercase hover:bg-green-700 shadow-lg">Aceptar</button>
+                    <button onClick={() => rejectRequest(req.id)} className="px-6 py-3 bg-white text-red-400 border border-gray-200 rounded-full text-[9px] font-bold uppercase hover:bg-red-50">✕</button>
                   </div>
                 </div>
               ))}
@@ -514,7 +435,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* LISTADO DE LIBROS */}
         <div className="mb-24">
            <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-gray-400 mb-8 flex items-center gap-4">
             Archivo Existente <span className="h-px flex-1 bg-amber-100"></span>
@@ -531,15 +451,21 @@ export default function AdminPage() {
                     )}
                     <div>
                       <p className="font-bold text-xl text-gray-900">{d.title}</p>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${d.isPublic ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
-                        {d.isPublic ? 'Público' : 'Privado'}
-                      </span>
+                      <div className="flex gap-2 mt-1">
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${d.isPublic ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
+                            {d.isPublic ? 'Público' : 'Privado'}
+                          </span>
+                          {/* ETIQUETA DE CATEGORÍA */}
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest bg-gray-100 text-gray-500">
+                            {d.category || "General"}
+                          </span>
+                      </div>
                     </div>
                   </div>
                   
                   <div className="mt-4 flex gap-3 justify-end w-full md:w-auto">
-                    <button onClick={() => setEditingDoc(d)} className="flex-1 md:flex-none px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-100 transition-colors">Editar</button>
-                    <button onClick={async () => { if(confirm('¿Eliminar definitivamente este libro?')) { await deleteDoc(doc(db, "documents", d.id)); loadData(); }}} className="flex-1 md:flex-none px-4 py-2 bg-red-50 text-red-500 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-red-100 transition-colors">Eliminar</button>
+                    <button onClick={() => setEditingDoc(d)} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-100">Editar</button>
+                    <button onClick={async () => { if(confirm('¿Eliminar?')) { await deleteDoc(doc(db, "documents", d.id)); loadData(); }}} className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-red-100">Eliminar</button>
                   </div>
                 </div>
                 
@@ -547,19 +473,15 @@ export default function AdminPage() {
                     <div className="mt-6 pt-6 border-t border-gray-50">
                       <p className="text-[9px] font-black uppercase text-gray-400 mb-3 tracking-widest">Usuarios con acceso:</p>
                       <div className="flex flex-wrap gap-2 mb-4">
-                        {d.authorizedEmails && d.authorizedEmails.length > 0 ? (
-                          d.authorizedEmails.map((email: string) => (
+                        {d.authorizedEmails?.map((email: string) => (
                             <div key={email} className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
                                <span className="text-xs text-gray-600">{email}</span>
-                               <button onClick={() => revokeAccess(d.id, email)} className="w-4 h-4 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-[9px] font-bold hover:bg-red-500 hover:text-white transition-colors" title="Quitar acceso">✕</button>
+                               <button onClick={() => revokeAccess(d.id, email)} className="w-4 h-4 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-[9px] font-bold hover:bg-red-500 hover:text-white">✕</button>
                             </div>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-300 italic">No hay usuarios asignados aún.</span>
-                        )}
+                        ))}
                       </div>
                       <div className="flex gap-2">
-                        <input placeholder="Agregar correo manualmente..." className="flex-1 bg-gray-50 px-4 py-2 rounded-lg text-xs outline-none" value={userEmailToAuthorize[d.id] || ""} onChange={(e) => setUserEmailToAuthorize({ ...userEmailToAuthorize, [d.id]: e.target.value })} />
+                        <input placeholder="Agregar correo..." className="flex-1 bg-gray-50 px-4 py-2 rounded-lg text-xs outline-none" value={userEmailToAuthorize[d.id] || ""} onChange={(e) => setUserEmailToAuthorize({ ...userEmailToAuthorize, [d.id]: e.target.value })} />
                         <button onClick={() => authorizeUser(d.id)} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-amber-600">Autorizar</button>
                       </div>
                     </div>
