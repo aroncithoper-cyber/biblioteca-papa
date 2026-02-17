@@ -14,7 +14,6 @@ import {
   setDoc
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-// IMPORTANTE: Agregamos mensajería
 import { getMessaging, getToken } from "firebase/messaging";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation"; 
@@ -31,7 +30,6 @@ type DocItem = {
   createdAt?: any;
 };
 
-// Función auxiliar
 const getBookNumber = (title: string) => {
   if (!title) return Infinity;
   const match = title.match(/(?:numero|número|num|no\.?|vol\.?)\s*(\d+)/i);
@@ -46,8 +44,6 @@ export default function BibliotecaPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [requestedBookIds, setRequestedBookIds] = useState<string[]>([]);
   const [savedBookIds, setSavedBookIds] = useState<string[]>([]); 
-  
-  // ESTADO PARA EL MODAL DE INSTALACIÓN
   const [showInstallModal, setShowInstallModal] = useState(false);
 
   const router = useRouter();
@@ -59,25 +55,19 @@ export default function BibliotecaPage() {
         setUserEmail(email);
         setUserId(user.uid);
 
-        // 1. Cargar Solicitudes
         try {
           const qReq = query(collection(db, "requests"), where("userEmail", "==", email));
           const snapReq = await getDocs(qReq);
           const ids = snapReq.docs.map((d) => d.data().bookId);
           setRequestedBookIds(ids);
-        } catch (e) {
-          console.error("Error cargando solicitudes", e);
-        }
+        } catch (e) { console.error(e); }
 
-        // 2. Cargar Favoritos
         try {
           const qFav = query(collection(db, "user_favorites"), where("userId", "==", user.uid), where("type", "==", "book"));
           const snapFav = await getDocs(qFav);
           const favIds = snapFav.docs.map((d) => d.data().contentId);
           setSavedBookIds(favIds);
-        } catch (e) {
-            console.error("Error cargando favoritos", e);
-        }
+        } catch (e) { console.error(e); }
 
       } else {
         setUserEmail(null);
@@ -85,7 +75,6 @@ export default function BibliotecaPage() {
       }
     });
 
-    // CARGA DE LIBROS
     (async () => {
       try {
         const q = query(collection(db, "documents"), orderBy("createdAt", "desc"));
@@ -107,10 +96,7 @@ export default function BibliotecaPage() {
 
         setDocs(fetchedDocs);
         setLoading(false);
-      } catch (error) {
-        console.error("Error cargando documentos:", error);
-        setLoading(false);
-      }
+      } catch (error) { setLoading(false); }
     })();
 
     return () => unsub();
@@ -130,9 +116,7 @@ export default function BibliotecaPage() {
         if (isSaved) {
             const q = query(collection(db, "user_favorites"), where("userId", "==", userId), where("contentId", "==", item.id));
             const snap = await getDocs(q);
-            snap.forEach(async (d) => {
-                await deleteDoc(doc(db, "user_favorites", d.id));
-            });
+            snap.forEach(async (d) => { await deleteDoc(doc(db, "user_favorites", d.id)); });
         } else {
             await addDoc(collection(db, "user_favorites"), {
                 userId,
@@ -149,13 +133,12 @@ export default function BibliotecaPage() {
     }
   };
 
-  // Función Notificaciones ACTUALIZADA
+  // --- FUNCIÓN DE NOTIFICACIONES CORREGIDA ---
   const handleEnableNotifications = async () => {
     if (!("Notification" in window)) return;
     
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      // 1. MENSAJE DE BIENVENIDA AUTOMÁTICO
       new Notification("¡Bienvenido a la Biblioteca!", {
         body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
         icon: "/icon-192.png",
@@ -163,12 +146,12 @@ export default function BibliotecaPage() {
         vibrate: [200, 100, 200]
       });
 
-      // 2. GUARDAR TOKEN EN BASE DE DATOS
       try {
         const messaging = getMessaging();
-        // Intentamos obtener el token. Si falta la VAPID key, podría fallar silenciosamente, 
-        // pero la notificación local (paso 1) funcionará igual.
-        const token = await getToken(messaging);
+        // AQUI ESTA TU CLAVE INTEGRADA:
+        const token = await getToken(messaging, { 
+            vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E" 
+        });
         
         if (token) {
            await addDoc(collection(db, "fcm_tokens"), {
@@ -176,10 +159,10 @@ export default function BibliotecaPage() {
              email: userEmail || "anonimo",
              createdAt: serverTimestamp()
            });
-           console.log("Dispositivo registrado para notificaciones");
+           console.log("Token guardado con éxito:", token);
         }
       } catch (error) {
-        console.log("Nota: Notificación activada localmente.");
+        console.log("Error guardando token:", error);
       }
 
     } else {
@@ -195,7 +178,6 @@ export default function BibliotecaPage() {
     <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
 
-      {/* --- ENCABEZADO CON BOTONES --- */}
       <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-8 sm:pb-12 text-center animate-in">
         <div className="flex justify-center items-center gap-6 mb-8 sm:mb-10">
           <div className="h-px w-12 sm:w-16 bg-gradient-to-r from-transparent to-amber-200"></div>
@@ -209,7 +191,6 @@ export default function BibliotecaPage() {
           Obra literaria y espiritual de Jose Enrique Perez Leon
         </p>
 
-        {/* --- BOTONES DE ACCIÓN (INSTALAR + AVISOS) --- */}
         <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
             <button 
               onClick={() => setShowInstallModal(true)}
@@ -227,7 +208,6 @@ export default function BibliotecaPage() {
         </div>
       </section>
 
-      {/* BUSCADOR */}
       <section className="max-w-6xl mx-auto px-6 pb-12 sticky top-4 z-40">
         <div className="relative max-w-xl mx-auto">
           <div className="relative backdrop-blur-xl bg-white/60 p-2 rounded-full border border-white shadow-2xl">
@@ -243,7 +223,6 @@ export default function BibliotecaPage() {
         </div>
       </section>
 
-      {/* COLECCIÓN PRIVADA */}
       <section className="max-w-7xl mx-auto px-6 pb-20">
         <div className="flex items-center justify-between mb-12 sm:mb-16 border-b border-amber-100 pb-6 sm:pb-8">
           <div className="space-y-1">
@@ -278,7 +257,6 @@ export default function BibliotecaPage() {
         )}
       </section>
 
-      {/* COLECCIÓN PÚBLICA */}
       {filteredPublic.length > 0 && (
         <section className="max-w-7xl mx-auto px-6 pb-32 mt-16 sm:mt-20">
           <div className="flex items-center justify-between mb-12 sm:mb-16 border-b border-gray-200 pb-6 sm:pb-8">
@@ -307,14 +285,12 @@ export default function BibliotecaPage() {
         </section>
       )}
 
-      {/* FOOTER */}
       <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-24 sm:py-32 text-center">
         <img src="/icon-512.png" className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-8 sm:mb-10 grayscale opacity-20" alt="" />
         <p className="text-[11px] sm:text-[12px] uppercase tracking-[0.8em] text-gray-400 font-bold mb-6 sm:mb-8">Jose Enrique Perez Leon</p>
         <p className="text-[9px] sm:text-[10px] text-gray-300 italic">Protección de derechos RV1909</p>
       </footer>
 
-      {/* MODAL DE INSTALACIÓN */}
       <InstallGuideModal 
         isOpen={showInstallModal} 
         onClose={() => setShowInstallModal(false)} 
@@ -323,7 +299,6 @@ export default function BibliotecaPage() {
   );
 }
 
-// COMPONENTE TARJETA DE LIBRO
 function BookCard({
   doc,
   index,
@@ -373,7 +348,6 @@ function BookCard({
     <div className="group flex flex-col items-center animate-in" style={{ animationDelay: `${index * 100}ms` }}>
       <div className={`relative w-56 sm:w-64 h-72 sm:h-80 transition-all duration-1000 ${hasAccess ? "group-hover:-translate-y-6 group-hover:rotate-3 group-hover:scale-105" : "opacity-80"}`}>
         
-        {/* BOTÓN FAVORITO */}
         {userEmail && (
             <button
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}

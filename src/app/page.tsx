@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import InstallGuideModal from "@/components/InstallGuideModal";
-// IMPORTANTE: Importamos lo necesario para notificaciones y base de datos
 import { getMessaging, getToken } from "firebase/messaging";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -13,7 +12,6 @@ export default function LandingPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showGuide, setShowGuide] = useState(false);
 
-  // Detectar si se puede instalar (Android/Chrome)
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
@@ -30,13 +28,12 @@ export default function LandingPage() {
     setInstallPrompt(null);
   };
 
-  // Función para pedir permiso de Notificaciones CON BIENVENIDA Y GUARDADO
+  // --- FUNCIÓN DE NOTIFICACIONES CORREGIDA ---
   const handleEnableNotifications = async () => {
     if (!("Notification" in window)) return;
     
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      // 1. MENSAJE DE BIENVENIDA
       new Notification("¡Bienvenido a la Biblioteca!", {
         body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
         icon: "/icon-192.png",
@@ -44,10 +41,12 @@ export default function LandingPage() {
         vibrate: [200, 100, 200]
       });
 
-      // 2. INTENTAR GUARDAR TOKEN EN FIRESTORE
       try {
         const messaging = getMessaging();
-        const token = await getToken(messaging); 
+        // AQUI ESTA TU CLAVE INTEGRADA:
+        const token = await getToken(messaging, { 
+             vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E" 
+        }); 
         
         if (token) {
            await addDoc(collection(db, "fcm_tokens"), {
@@ -57,7 +56,7 @@ export default function LandingPage() {
            console.log("Token guardado desde Inicio");
         }
       } catch (error) {
-        console.log("Nota: Notificación local lista.");
+        console.log("Error guardando token:", error);
       }
 
     } else {
@@ -69,13 +68,10 @@ export default function LandingPage() {
     <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200">
       <Header />
       
-      {/* VENTANA DE AYUDA PARA INSTALAR */}
       <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
-      {/* --- BARRA FLOTANTE DE ACCIONES (APP BAR) --- */}
       <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
         
-        {/* 1. Botón Android Automático (Solo sale si se puede instalar directo) */}
         {installPrompt && (
           <button 
             onClick={handleInstallClick} 
@@ -86,7 +82,6 @@ export default function LandingPage() {
           </button>
         )}
 
-        {/* 2. Botón de Notificaciones (NUEVO) */}
         <button 
             onClick={handleEnableNotifications}
             className="flex items-center gap-2 px-4 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-black hover:text-white transition-all hover:scale-105 active:scale-95 pointer-events-auto"
@@ -95,7 +90,6 @@ export default function LandingPage() {
             <span className="hidden sm:inline">Avisos</span>
         </button>
 
-        {/* 3. Botón de Ayuda (Visible siempre) */}
         <button 
           onClick={() => setShowGuide(true)} 
           className="flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 pointer-events-auto"
@@ -105,7 +99,6 @@ export default function LandingPage() {
         </button>
       </div>
 
-      {/* --- SECCIÓN HERO (PORTADA) --- */}
       <section className="relative pt-10 pb-32 px-6 overflow-hidden text-center">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-amber-100/40 rounded-full blur-3xl -z-10 opacity-60" />
 
@@ -144,11 +137,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- SECCIÓN BIOGRAFÍA --- */}
       <section className="py-24 bg-white border-t border-amber-50">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 md:gap-20 items-center">
           
-          {/* FOTO DEL AUTOR */}
           <div className="relative group mx-auto w-full max-w-md">
             <div className="absolute inset-0 bg-amber-100 rounded-[2.5rem] rotate-3 group-hover:rotate-6 transition-transform duration-700" />
             <div className="relative aspect-[3/4] bg-gray-100 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
@@ -164,7 +155,6 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* TEXTO BIOGRÁFICO */}
           <div className="space-y-8 text-center md:text-left">
             <h2 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tight leading-tight">
               Un corazón dispuesto al <span className="text-amber-600 underline decoration-amber-200 decoration-4 underline-offset-4">servicio.</span>
@@ -193,7 +183,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- FOOTER --- */}
       <footer className="bg-[#121212] text-white py-20 px-6 text-center border-t border-gray-800">
         <img src="/icon-512.png" className="w-10 h-10 mx-auto mb-8 opacity-30 grayscale invert" alt="Logo" />
         <p className="text-[9px] uppercase tracking-[0.4em] font-bold text-gray-500 mb-4">
