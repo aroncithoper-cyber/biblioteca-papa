@@ -11,7 +11,9 @@ import {
   where,
   deleteDoc,
   doc, 
-  setDoc
+  setDoc,
+  limit,       // IMPORTANTE: Nuevo
+  onSnapshot   // IMPORTANTE: Nuevo (para escuchar cambios en tiempo real)
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { getMessaging, getToken } from "firebase/messaging";
@@ -44,10 +46,36 @@ export default function BibliotecaPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [requestedBookIds, setRequestedBookIds] = useState<string[]>([]);
   const [savedBookIds, setSavedBookIds] = useState<string[]>([]); 
+  
+  // ESTADOS NUEVOS
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [ultimoAviso, setUltimoAviso] = useState<string | null>(null); // Estado para el Banner
 
   const router = useRouter();
 
+  // 1. EFECTO PARA DETECTAR NUEVOS LIBROS (RESPALDO VISUAL)
+  useEffect(() => {
+    // Escuchamos solo el último documento subido
+    const q = query(collection(db, "documents"), orderBy("createdAt", "desc"), limit(1));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const nuevoDoc = snapshot.docs[0].data();
+        const titulo = nuevoDoc.title;
+        // Obtenemos la fecha. Si es Timestamp de Firebase la convertimos, si no usamos Date.now()
+        const fechaDoc = nuevoDoc.createdAt?.toDate ? nuevoDoc.createdAt.toDate().getTime() : Date.now();
+        const hace24Horas = Date.now() - (24 * 60 * 60 * 1000);
+
+        // Si el libro se subió hace menos de 24 horas, mostramos el aviso
+        if (fechaDoc > hace24Horas) {
+          setUltimoAviso(titulo);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. EFECTO DE AUTENTICACIÓN Y CARGA DE DATOS
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -133,40 +161,48 @@ export default function BibliotecaPage() {
     }
   };
 
-  // --- FUNCIÓN DE NOTIFICACIONES CORREGIDA ---
+  // --- 3. FUNCIÓN DE NOTIFICACIONES MEJORADA ---
   const handleEnableNotifications = async () => {
-    if (!("Notification" in window)) return;
+    if (!("Notification" in window)) {
+        alert("Tu navegador no soporta notificaciones.");
+        return;
+    }
     
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      new Notification("¡Bienvenido a la Biblioteca!", {
-        body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
-        icon: "/icon-192.png",
-        // @ts-ignore
-        vibrate: [200, 100, 200]
-      });
-
-      try {
-        const messaging = getMessaging();
-        // AQUI ESTA TU CLAVE INTEGRADA:
-        const token = await getToken(messaging, { 
-            vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E" 
-        });
+    try {
+        // Pedimos permiso
+        const permission = await Notification.requestPermission();
         
-        if (token) {
-           await addDoc(collection(db, "fcm_tokens"), {
-             token: token,
-             email: userEmail || "anonimo",
-             createdAt: serverTimestamp()
-           });
-           console.log("Token guardado con éxito:", token);
-        }
-      } catch (error) {
-        console.log("Error guardando token:", error);
-      }
+        if (permission === "granted") {
+            // Bienvenida local (instantánea)
+            new Notification("¡Bienvenido a la Biblioteca!", {
+                body: "Avisos activados correctamente.",
+                icon: "/icon-192.png",
+                // @ts-ignore
+                vibrate: [200, 100, 200]
+            });
 
-    } else {
-      alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
+            // Obtenemos Token
+            const messaging = getMessaging();
+            const token = await getToken(messaging, { 
+                vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E" 
+            });
+            
+            if (token) {
+                // Usamos setDoc para no duplicar registros si el usuario da clic varias veces
+                await setDoc(doc(db, "fcm_tokens", token), {
+                    token: token,
+                    email: userEmail || "anonimo",
+                    createdAt: serverTimestamp(),
+                    lastActive: serverTimestamp()
+                });
+                alert("✅ ¡Avisos activados con éxito!");
+            }
+        } else if (permission === "denied") {
+            alert("⚠️ El permiso está bloqueado.\n\nPor favor, toca el CANDADO 🔒 junto a la dirección web y selecciona 'Permisos' -> 'Restablecer' o 'Permitir'.");
+        }
+    } catch (error) {
+        console.error("Error activando notificaciones:", error);
+        alert("Hubo un error técnico. Intenta recargar la página.");
     }
   };
 
@@ -177,6 +213,24 @@ export default function BibliotecaPage() {
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
+
+      {/* --- BANNER DE RESPALDO (Aparece si hay libro nuevo) --- */}
+      {ultimoAviso && (
+        <div className="fixed top-24 left-0 right-0 z-50 px-4 animate-in slide-in-from-top-4 duration-700">
+            <div className="max-w-md mx-auto bg-amber-600/95 backdrop-blur-md text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center justify-between border-2 border-white/20">
+                <div className="flex items-center gap-3">
+                    <span className="text-xl">✨</span>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-amber-100 tracking-widest">Recién agregado</span>
+                        <span className="text-sm font-bold leading-tight line-clamp-1">{ultimoAviso}</span>
+                    </div>
+                </div>
+                <button onClick={() => setUltimoAviso(null)} className="ml-4 p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors">
+                    ✕
+                </button>
+            </div>
+        </div>
+      )}
 
       <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-8 sm:pb-12 text-center animate-in">
         <div className="flex justify-center items-center gap-6 mb-8 sm:mb-10">
