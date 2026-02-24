@@ -18,7 +18,8 @@ export default function LandingPage() {
       setInstallPrompt(e);
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () =>
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
 
   const handleInstallClick = async () => {
@@ -30,172 +31,147 @@ export default function LandingPage() {
 
   const handleEnableNotifications = async () => {
     if (!("Notification" in window)) return;
-    
+
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      new Notification("¡Bienvenido al Acervo!", {
-        body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
+      new Notification("Bienvenido", {
+        body: "Recibirás avisos cuando se compartan nuevos escritos.",
         icon: "/icon-192.png",
-        // @ts-ignore
-        vibrate: [200, 100, 200]
       });
 
       try {
         const messaging = getMessaging();
-        const token = await getToken(messaging, { 
-             vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E" 
-        }); 
-        
+        const token = await getToken(messaging, {
+          vapidKey:
+            "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E",
+        });
+
         if (token) {
-           await addDoc(collection(db, "fcm_tokens"), {
-             token: token,
-             createdAt: serverTimestamp()
-           });
-           console.log("Token guardado desde Inicio");
+          await addDoc(collection(db, "fcm_tokens"), {
+            token,
+            createdAt: serverTimestamp(),
+          });
         }
       } catch (error) {
         console.log("Error guardando token:", error);
       }
-
-    } else {
-      alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
     }
   };
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200">
       <Header />
-      
-      <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
-      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
-        
+      <InstallGuideModal
+        isOpen={showGuide}
+        onClose={() => setShowGuide(false)}
+      />
+
+      {/* BOTONES FLOTANTES MÁS DISCRETOS */}
+      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center items-center gap-3 px-4 pointer-events-none">
         {installPrompt && (
-          <button 
-            onClick={handleInstallClick} 
-            className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-2xl border-2 border-white hover:bg-black transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+          <button
+            onClick={handleInstallClick}
+            className="px-5 py-3 bg-amber-600 text-white rounded-full text-[10px] uppercase tracking-[0.2em] shadow-lg pointer-events-auto hover:bg-black transition"
           >
-            <span className="text-base">📲</span>
-            <span>Instalar App</span>
+            📲 Instalar
           </button>
         )}
 
-        <button 
-            onClick={handleEnableNotifications}
-            className="flex items-center gap-2 px-4 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-black hover:text-white transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+        <button
+          onClick={handleEnableNotifications}
+          className="px-5 py-3 bg-white border border-gray-200 rounded-full text-[10px] uppercase tracking-[0.2em] shadow-md pointer-events-auto hover:bg-black hover:text-white transition"
         >
-            <span className="text-base">🔔</span>
-            <span className="hidden sm:inline">Avisos</span>
-        </button>
-
-        <button 
-          onClick={() => setShowGuide(true)} 
-          className="flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 pointer-events-auto"
-        >
-          <span className="text-base">❓</span>
-          <span>¿Cómo instalar?</span>
+          🔔 Avisos
         </button>
       </div>
 
-      <section className="relative pt-10 pb-32 px-6 overflow-hidden text-center">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-amber-100/40 rounded-full blur-3xl -z-10 opacity-60" />
+      {/* HERO PRINCIPAL */}
+      <section className="relative pt-20 pb-28 px-6 text-center">
+        <div className="max-w-3xl mx-auto space-y-8">
 
-        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in zoom-in duration-1000">
-          
-          {/* CAMBIO 1: LEGADO ESPIRITUAL */}
-          <div className="inline-block border border-amber-200/50 rounded-full px-4 py-1.5 bg-white/50 backdrop-blur shadow-sm mb-4">
-            <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-amber-700">
-              Legado Espiritual
-            </span>
-          </div>
-
-          <h1 className="text-5xl sm:text-7xl md:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9]">
-            El Legado del <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-600 to-amber-800">
-              Obrero
-            </span>
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold text-gray-900 leading-tight">
+            Consejero del Obrero
           </h1>
 
-          <p className="text-lg md:text-xl text-gray-500 italic font-medium max-w-2xl mx-auto leading-relaxed pt-4">
-            "Instruye al niño en su camino, y aun cuando fuere viejo no se apartará de él."
+          <p className="text-lg md:text-xl text-amber-800 font-medium leading-relaxed">
+            Estudios y escritos compartidos para la edificación de los hermanos.
           </p>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-10">
+
+          <p className="text-sm text-gray-500 max-w-2xl mx-auto leading-relaxed">
+            Este espacio reúne parte del trabajo realizado por 
+            J. Enrique Pérez León a lo largo de los años,
+            como un archivo personal al servicio de la iglesia.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
             <Link
               href="/biblioteca"
-              className="w-full sm:w-auto px-10 py-4 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-[0.25em] hover:bg-amber-600 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1"
+              className="w-full sm:w-auto px-8 py-3 bg-black text-white rounded-full text-[11px] uppercase tracking-widest hover:bg-amber-600 transition"
             >
-              Explorar la Obra
+              Ver Biblioteca
             </Link>
             <Link
-              href="/galeria"
-              className="w-full sm:w-auto px-10 py-4 bg-white text-gray-900 border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-[0.25em] hover:bg-gray-50 transition-all hover:border-gray-400"
+              href="/biografia"
+              className="w-full sm:w-auto px-8 py-3 bg-white border border-gray-200 rounded-full text-[11px] uppercase tracking-widest hover:bg-gray-100 transition"
             >
-              Ver Galería
+              Sobre el Autor
             </Link>
           </div>
         </div>
       </section>
 
-      <section className="py-24 bg-white border-t border-amber-50">
-        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 md:gap-20 items-center">
-          
-          <div className="relative group mx-auto w-full max-w-md">
-            <div className="absolute inset-0 bg-amber-100 rounded-[2.5rem] rotate-3 group-hover:rotate-6 transition-transform duration-700" />
-            <div className="relative aspect-[3/4] bg-gray-100 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
-              <img 
-                src="/autor.png" 
-                className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000"
-                alt="J. Enrique Pérez L."
-                onError={(e) => {
-                  e.currentTarget.src = "/icon-512.png"; 
-                  e.currentTarget.classList.add("opacity-20", "p-20");
-                }}
+      {/* SECCIÓN AUTOR */}
+      <section className="py-20 bg-white border-t border-amber-50">
+        <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
+          <div className="mx-auto w-full max-w-sm">
+            <div className="aspect-[3/4] bg-gray-100 rounded-2xl overflow-hidden shadow-lg">
+              <img
+                src="/autor.png"
+                className="w-full h-full object-cover"
+                alt="J. Enrique Pérez León"
               />
             </div>
           </div>
 
-          <div className="space-y-8 text-center md:text-left">
-            <h2 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tight leading-tight">
-              Un corazón dispuesto al <span className="text-amber-600 underline decoration-amber-200 decoration-4 underline-offset-4">servicio.</span>
+          <div className="space-y-6 text-center md:text-left">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+              Una obra compartida con sencillez.
             </h2>
-            <div className="w-20 h-1 bg-amber-500 rounded-full mx-auto md:mx-0" />
-            
-            <p className="text-gray-600 leading-loose text-base md:text-lg">
-              La obra de <strong>J. Enrique Pérez León</strong> no pretende ser un tratado académico, sino una ofrenda de gratitud. Es el fruto de años de caminar en la fe, de estudio silencioso y de oración constante por la iglesia.
+
+            <p className="text-gray-600 leading-loose">
+              Los escritos de <strong>J. Enrique Pérez León</strong> nacen del deseo personal 
+              de compartir lo aprendido en el caminar de la fe. 
+              No buscan reconocimiento formal, sino servir como apoyo y aliento 
+              para quienes trabajan en la obra del Señor.
             </p>
-            
-            <p className="text-gray-600 leading-loose text-base md:text-lg">
-              Esta plataforma nace con el deseo sencillo de compartir lo que de gracia se ha recibido, esperando que estas líneas sirvan de aliento para los hermanos que trabajan en la viña del Señor.
+
+            <p className="text-gray-600 leading-loose">
+              Este archivo digital es simplemente una forma de conservar y 
+              facilitar el acceso a dichos estudios para los hermanos.
             </p>
-            
-            <div className="grid grid-cols-2 gap-8 pt-6 border-t border-gray-100 mt-8">
-              <div>
-                <h3 className="text-4xl font-black text-amber-600">40+</h3>
-                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">Años sirviendo</p>
-              </div>
-              <div>
-                <h3 className="text-4xl font-black text-amber-600">∞</h3>
-                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">Gratitud Eterna</p>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      <footer className="bg-[#121212] text-white py-20 px-6 text-center border-t border-gray-800">
-        <img src="/icon-512.png" className="w-10 h-10 mx-auto mb-8 opacity-30 grayscale invert" alt="Logo" />
-        <p className="text-[9px] uppercase tracking-[0.4em] font-bold text-gray-500 mb-4">
-          © 2026 Consejero Digital
+      {/* FOOTER SOBRIO Y CLARO */}
+      <footer className="bg-[#121212] text-white py-16 px-6 text-center">
+        <img
+          src="/icon-512.png"
+          className="w-10 h-10 mx-auto mb-6 opacity-30 grayscale invert"
+          alt="Logo"
+        />
+
+        <p className="text-[10px] uppercase tracking-[0.3em] text-gray-500 mb-4">
+          Consejero del Obrero
         </p>
-        
-        {/* CAMBIO 2: DISCLAIMER PARA EVITAR REGAÑOS */}
-        <p className="text-[10px] text-gray-400 font-light max-w-xl mx-auto leading-relaxed mb-6 px-4">
-          Esta plataforma es un archivo personal destinado a la edificación ministerial y de la iglesia.
+
+        <p className="text-[10px] text-gray-400 max-w-xl mx-auto leading-relaxed mb-4">
+          Archivo personal destinado a la edificación fraternal.
         </p>
-        
-        <p className="text-[8px] text-gray-600 italic font-serif">
-          Protección de Derechos Reservados
+
+        <p className="text-[9px] text-gray-500">
+          Este sitio no representa a la administración general.
         </p>
       </footer>
     </main>
