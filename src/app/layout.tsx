@@ -1,13 +1,14 @@
 import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
 import { Metadata, Viewport } from "next";
-import { PlayerProvider } from "@/lib/PlayerContext"; // <--- Importamos el cerebro del audio
-import GlobalPlayer from "@/components/GlobalPlayer"; // <--- Importamos el reproductor flotante
-import NotificationManager from "@/components/NotificationManager"; // <--- Importamos el sistema de notificaciones
+import { PlayerProvider } from "@/lib/PlayerContext"; 
+import GlobalPlayer from "@/components/GlobalPlayer"; 
+import NotificationManager from "@/components/NotificationManager"; 
 
 export const metadata: Metadata = {
   title: "Consejero del Obrero | Legado Digital",
-  description: "Biblioteca oficial de la obra de Jose Enrique Perez Leon. Estudios, libros y enseñanzas para la edificación del obrero.",
+  // CAMBIO 3: Metadatos sin "Oficial"
+  description: "Acervo personal y legado espiritual de la obra de Jose Enrique Perez Leon. Estudios, libros y enseñanzas para la edificación del obrero.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -36,7 +37,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary",
     title: "Consejero del Obrero",
-    description: "Biblioteca oficial de Jose Enrique Perez Leon.",
+    description: "Acervo personal de Jose Enrique Perez Leon.",
     images: ["/icon-512.png"],
   },
 };
@@ -57,14 +58,13 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="antialiased bg-[#fcfaf7]">
-        {/* 🔔 Sistema de Notificaciones Inteligente (Carga silenciosa) */}
+        {/* 🔔 Sistema de Notificaciones Inteligente */}
         <NotificationManager />
 
         {/* Envolvemos todo en el Proveedor del Reproductor */}
         <PlayerProvider>
           <AuthGuard>
             {children}
-            {/* Aquí vive el reproductor flotante para toda la app */}
             <GlobalPlayer />
           </AuthGuard>
         </PlayerProvider>

@@ -28,13 +28,12 @@ export default function LandingPage() {
     setInstallPrompt(null);
   };
 
-  // --- FUNCIÓN DE NOTIFICACIONES CORREGIDA ---
   const handleEnableNotifications = async () => {
     if (!("Notification" in window)) return;
     
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      new Notification("¡Bienvenido a la Biblioteca!", {
+      new Notification("¡Bienvenido al Acervo!", {
         body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
         icon: "/icon-192.png",
         // @ts-ignore
@@ -43,7 +42,6 @@ export default function LandingPage() {
 
       try {
         const messaging = getMessaging();
-        // AQUI ESTA TU CLAVE INTEGRADA:
         const token = await getToken(messaging, { 
              vapidKey: "BFlxGRnMNZ9xXK5WT7K0LzAt56PKDZ64kyPfb8OIOCWimsg4zupJdFcs3G2wnyRMOqxREywZBl1Rdzo5G6es03E" 
         }); 
@@ -103,9 +101,11 @@ export default function LandingPage() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-amber-100/40 rounded-full blur-3xl -z-10 opacity-60" />
 
         <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in zoom-in duration-1000">
+          
+          {/* CAMBIO 1: LEGADO ESPIRITUAL */}
           <div className="inline-block border border-amber-200/50 rounded-full px-4 py-1.5 bg-white/50 backdrop-blur shadow-sm mb-4">
             <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-amber-700">
-              Biblioteca Oficial
+              Legado Espiritual
             </span>
           </div>
 
@@ -188,6 +188,12 @@ export default function LandingPage() {
         <p className="text-[9px] uppercase tracking-[0.4em] font-bold text-gray-500 mb-4">
           © 2026 Consejero Digital
         </p>
+        
+        {/* CAMBIO 2: DISCLAIMER PARA EVITAR REGAÑOS */}
+        <p className="text-[10px] text-gray-400 font-light max-w-xl mx-auto leading-relaxed mb-6 px-4">
+          Esta plataforma es un archivo personal destinado a la edificación ministerial y no representa un órgano oficial administrativo de la iglesia.
+        </p>
+        
         <p className="text-[8px] text-gray-600 italic font-serif">
           Protección de Derechos Reservados
         </p>
