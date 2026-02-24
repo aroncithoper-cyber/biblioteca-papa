@@ -1,9 +1,18 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 
 export async function POST(request: Request) {
   try {
     const { title, body } = await request.json();
+
+    if (!adminDb || !adminMessaging) {
+      return NextResponse.json(
+        { success: false, error: "Firebase Admin not initialized" },
+        { status: 500 }
+      );
+    }
 
     const tokensSnapshot = await adminDb.collection("fcm_tokens").get();
     const tokens = tokensSnapshot.docs
@@ -14,19 +23,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, sentCount: 0 });
     }
 
-    // CONFIGURACIÓN MEJORADA PARA FORZAR EL "BIP"
     const message = {
       notification: { title, body },
-      tokens: tokens,
-      // Esto es para Android: Fuerza que suene y despierte
+      tokens,
       android: {
         priority: "high" as const,
         notification: {
           sound: "default",
-          clickAction: "FLUTTER_NOTIFICATION_CLICK", // Ayuda a que al picar abra la app
+          clickAction: "FLUTTER_NOTIFICATION_CLICK",
         },
       },
-      // Esto es para iPhone/Web: Prioridad máxima
       webpush: {
         headers: {
           Urgency: "high",
@@ -34,20 +40,23 @@ export async function POST(request: Request) {
         notification: {
           icon: "/icon-192.png",
           badge: "/icon-192.png",
-          requireInteraction: true, // La notificación no se quita hasta que el usuario la vea
-        }
-      }
+          requireInteraction: true,
+        },
+      },
     };
 
     const response = await adminMessaging.sendEachForMulticast(message);
 
-    return NextResponse.json({ 
-      success: true, 
-      sentCount: response.successCount 
+    return NextResponse.json({
+      success: true,
+      sentCount: response.successCount,
     });
 
   } catch (error: any) {
     console.error("ERROR:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }
