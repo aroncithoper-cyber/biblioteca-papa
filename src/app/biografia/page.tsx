@@ -3,25 +3,22 @@
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Link from "next/link";
-// Importamos el modal para que funcione el botón de ayuda
 import InstallGuideModal from "@/components/InstallGuideModal";
 
 export default function BiografiaPage() {
-  // Estados para los botones flotantes
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showGuide, setShowGuide] = useState(false);
 
-  // 1. Detectar si se puede instalar (Android/Chrome)
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
       setInstallPrompt(e);
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () =>
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
 
-  // 2. Funciones de los botones
   const handleInstallClick = async () => {
     if (!installPrompt) return;
     installPrompt.prompt();
@@ -33,179 +30,145 @@ export default function BiografiaPage() {
     if (!("Notification" in window)) return;
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      alert("✅ ¡Avisos Activados!\nTe notificaremos cuando haya nuevos libros.");
-    } else {
-      alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
+      alert("Avisos activados correctamente.");
     }
   };
 
   return (
     <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200 pb-20">
       <Header />
-      
-      {/* Modal de Ayuda */}
-      <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
-      {/* --- BARRA FLOTANTE (BOTONES PRO) --- */}
-      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
-        
+      <InstallGuideModal
+        isOpen={showGuide}
+        onClose={() => setShowGuide(false)}
+      />
+
+      {/* BOTONES FLOTANTES */}
+      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center gap-3 px-4 pointer-events-none">
         {installPrompt && (
-          <button 
-            onClick={handleInstallClick} 
-            className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-2xl border-2 border-white hover:bg-black transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+          <button
+            onClick={handleInstallClick}
+            className="pointer-events-auto px-5 py-3 bg-amber-600 text-white rounded-full text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg hover:bg-black transition-all"
           >
-            <span className="text-base">📲</span>
-            <span>Instalar App</span>
+            Instalar App
           </button>
         )}
 
-        <button 
-            onClick={handleEnableNotifications}
-            className="flex items-center gap-2 px-4 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-black hover:text-white transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+        <button
+          onClick={handleEnableNotifications}
+          className="pointer-events-auto px-5 py-3 bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-black hover:text-white transition-all"
         >
-            <span className="text-base">🔔</span>
-            <span className="hidden sm:inline">Avisos</span>
+          Avisos
         </button>
 
-        <button 
-          onClick={() => setShowGuide(true)} 
-          className="flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+        <button
+          onClick={() => setShowGuide(true)}
+          className="pointer-events-auto px-5 py-3 bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-gray-100 transition-all"
         >
-          <span className="text-base">❓</span>
-          <span>Ayuda</span>
+          Ayuda
         </button>
       </div>
 
-      {/* --- SECCIÓN HERO --- */}
-      <section className="relative h-[65vh] flex items-end justify-center overflow-hidden bg-gray-900">
-        <div className="absolute inset-0 w-full h-full">
-            <img 
-              src="/papa-predicando.png" 
-              alt="Ministro Enrique Pérez predicando" 
-              className="w-full h-full object-cover object-top opacity-60 scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#fcfaf7] via-transparent to-black/40" />
+      {/* HERO */}
+      <section className="relative h-[60vh] flex items-end justify-center overflow-hidden bg-gray-900">
+        <div className="absolute inset-0">
+          <img
+            src="/papa-predicando.png"
+            alt="J. Enrique Pérez predicando"
+            className="w-full h-full object-cover object-top opacity-60"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#fcfaf7] via-transparent to-black/40" />
         </div>
-        
-        <div className="relative z-10 text-center px-6 pb-20 animate-in slide-in-from-bottom-8 duration-1000">
-          <p className="text-amber-800 font-bold uppercase tracking-[0.4em] text-xs mb-4 bg-white/90 backdrop-blur-md inline-block px-4 py-1 rounded-full shadow-lg">
+
+        <div className="relative z-10 text-center px-6 pb-16">
+          <p className="text-xs uppercase tracking-[0.4em] bg-white/90 px-4 py-1 rounded-full font-bold text-amber-700 inline-block mb-4">
             El autor
           </p>
-          <h1 className="text-6xl md:text-8xl font-black text-gray-900 tracking-tighter mb-2 leading-none drop-shadow-sm">
-            J. Enrique <br className="md:hidden" /> Pérez L.
+          <h1 className="text-5xl md:text-7xl font-black text-gray-900 tracking-tight">
+            J. Enrique Pérez León
           </h1>
-          <div className="h-1 w-24 bg-amber-600 mx-auto mt-6 rounded-full"></div>
+          <div className="h-1 w-20 bg-amber-600 mx-auto mt-6 rounded-full"></div>
         </div>
       </section>
 
-      {/* --- CONTENIDO PRINCIPAL --- */}
+      {/* CONTENIDO */}
       <section className="max-w-6xl mx-auto px-6 -mt-10 relative z-20">
-        <div className="bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-8 md:p-16 border border-amber-50">
-          
-          <div className="grid lg:grid-cols-12 gap-12 items-start">
-            
-            {/* COLUMNA IZQUIERDA: FOTO Y TIMELINE */}
-            <div className="lg:col-span-4 lg:sticky lg:top-24 space-y-10">
-              <div className="relative group mx-auto max-w-xs lg:max-w-none">
-                <div className="absolute -inset-3 bg-amber-100/50 rounded-[2.5rem] -rotate-2 group-hover:rotate-0 transition-transform duration-700 ease-out" />
-                <img 
-                  src="/perfil-papa.png" 
-                  alt="Perfil J. Enrique Pérez" 
-                  className="relative w-full aspect-[3/4] object-cover rounded-[2rem] shadow-2xl border-[6px] border-white"
-                />
-              </div>
+        <div className="bg-white rounded-[3rem] shadow-xl p-8 md:p-16 border border-amber-50">
 
-              {/* TIMELINE */}
-              <div className="pl-4 border-l-2 border-amber-100 space-y-8 relative">
-                
-                {/* 1983 */}
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-200 rounded-full ring-4 ring-white"></div>
-                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1983</p>
-                  <p className="text-sm font-bold text-gray-900">Jerarquía de Ayuda</p>
-                  <p className="text-xs text-gray-500 mt-1">Inicio del servicio</p>
-                </div>
+          <div className="space-y-10">
 
-                {/* 1985 */}
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-400 rounded-full ring-4 ring-white"></div>
-                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1985</p>
-                  <p className="text-sm font-bold text-gray-900">Jerarquía de Diácono</p>
-                  <p className="text-xs text-gray-500 mt-1">19 de marzo</p>
-                </div>
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-6">
+                Una vida dedicada al servicio
+              </h2>
 
-                {/* 1987 */}
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-amber-600 rounded-full ring-4 ring-white"></div>
-                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">1987</p>
-                  <p className="text-sm font-bold text-gray-900">Jerarquía de Ministro</p>
-                  <p className="text-xs text-gray-500 mt-1">6 de Octubre</p>
-                </div>
+              <p className="text-gray-600 leading-loose text-lg text-justify">
+                La trayectoria de <strong>J. Enrique Pérez León</strong> comenzó
+                en los primeros años de su juventud, participando activamente en
+                la preparación ministerial y en el acompañamiento pastoral en
+                distintas localidades.
+              </p>
 
-                {/* Actualidad */}
-                <div className="relative">
-                   <div className="absolute -left-[21px] top-1.5 w-3 h-3 bg-gray-900 rounded-full ring-4 ring-white"></div>
-                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Actualidad</p>
-                  <p className="text-sm font-bold text-gray-900">+40 Años de Servicio</p>
-                  <p className="text-xs text-gray-500 mt-1">Iglesia de Dios (Israelita)</p>
-                </div>
+              <p className="text-gray-600 leading-loose text-lg text-justify mt-4">
+                Con el paso del tiempo recibió las responsabilidades
+                ministeriales correspondientes, dedicando más de cuatro décadas
+                al servicio continuo dentro de la iglesia.
+              </p>
+            </div>
+
+            {/* CITA */}
+            <div className="border-l-4 border-amber-500 pl-6 italic text-xl text-gray-800 font-serif">
+              “Escribir es una manera de dejar apoyo para quienes vienen
+              después; que la doctrina permanezca firme y sea continuada por las
+              futuras generaciones.”
+            </div>
+
+            <div>
+              <h3 className="text-xl font-bold uppercase tracking-widest text-gray-900 mb-4">
+                La labor escrita
+              </h3>
+
+              <p className="text-gray-600 leading-loose text-lg text-justify">
+                Los estudios y materiales aquí compartidos surgen del deseo de
+                facilitar la enseñanza y preservar apuntes doctrinales que han
+                servido en distintos momentos del ministerio.
+              </p>
+
+              <p className="text-gray-600 leading-loose text-lg text-justify mt-4">
+                No se trata de una publicación oficial, sino de un archivo
+                personal destinado a la edificación fraternal.
+              </p>
+            </div>
+
+            {/* SECCIÓN APOYO VOLUNTARIO */}
+            <div className="mt-12 bg-gray-50 rounded-3xl p-8 border border-gray-100 text-center">
+              <h4 className="text-lg font-bold text-gray-900 mb-3">
+                Apoyo voluntario
+              </h4>
+              <p className="text-gray-600 text-sm max-w-xl mx-auto leading-relaxed">
+                Si alguno desea apoyar esta labor escrita de manera voluntaria,
+                puede hacerlo como muestra de aprecio y respaldo al trabajo
+                realizado.
+              </p>
+
+              {/* AQUÍ luego podemos poner botón PayPal o información bancaria */}
+              <div className="mt-6">
+                <button className="px-6 py-2 border border-amber-600 text-amber-700 rounded-full text-xs uppercase tracking-widest hover:bg-amber-600 hover:text-white transition-all">
+                  Información de apoyo
+                </button>
               </div>
             </div>
 
-            {/* COLUMNA DERECHA: HISTORIA */}
-            <div className="lg:col-span-8 space-y-12">
-              
-              <div className="space-y-6">
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
-                  Una historia de <span className="text-amber-700 decoration-amber-200 decoration-4 underline-offset-4 underline">servicio.</span>
-                </h2>
-                <p className="text-gray-600 leading-loose text-lg text-justify font-light">
-                  <span className="font-bold text-gray-900 text-xl">L</span>a trayectoria de <strong>J. Enrique Pérez L.</strong> comenzó en 1982, asistiendo a las reuniones de preparación bajo la instrucción de los Ministros Santiago Montiel y Zeferino Jiménez. Con el deseo de ser útil en la obra, recibió la <strong>Jerarquía de Ayuda</strong>, comenzando una etapa de aprendizaje y servicio.
-                </p>
-                <p className="text-gray-600 leading-loose text-lg text-justify font-light">
-                  Durante casi dos años, asistió a la localidad de Cuesta Colorada, Hidalgo, viajando cada quince días a esta zona de difícil acceso. Fueron tiempos de siembra y esfuerzo que forjaron su carácter ministerial. Su caminata continuó con la recepción de la Jerarquía de Diácono el 19 de marzo de 1985, y posteriormente su consagración en la Jerarquía de Ministro el 6 de octubre de 1987, entregando su juventud al servicio de la iglesia.
-                </p>
-              </div>
-
-              {/* Cita */}
-              <div className="relative py-8">
-                 <div className="absolute left-0 top-0 text-8xl text-amber-100 font-serif -translate-y-4">“</div>
-                 <blockquote className="relative z-10 pl-8 border-l-4 border-amber-500 italic text-xl md:text-2xl text-gray-800 leading-relaxed font-serif">
-                   Siempre he creído que escribir es la manera de dejar un apoyo para quienes vienen tras de nosotros. Mi deseo es que la doctrina se mantenga firme y sea continuada por las futuras generaciones.
-                 </blockquote>
-              </div>
-
-              <div className="space-y-6">
-                <h3 className="text-xl font-black uppercase tracking-widest text-gray-900 flex items-center gap-3">
-                  <span className="w-8 h-px bg-gray-300"></span>
-                  La Labor Escrita
-                </h3>
-                <p className="text-gray-600 leading-loose text-lg text-justify font-light">
-                  Para el Ministro Pérez, la escritura surgió como una herramienta necesaria para la enseñanza. Desde sus primeros apuntes hasta la elaboración de folletos y libros, su intención ha sido plasmar los estudios bíblicos para facilitar la comprensión de la doctrina. Inspirado por el trabajo editorial de la iglesia en décadas pasadas, dedica tiempo al estudio y redacción, con la esperanza de que estos materiales sean de utilidad para el cuerpo ministerial y la congregación.
-                </p>
-                <p className="text-gray-600 leading-loose text-lg text-justify font-light">
-                  Su enfoque no está en el reconocimiento, sino en la edificación. Como él mismo expresa: <em>"La doctrina es importante porque es la base, pero la acción es fundamental para cumplir la voluntad de Dios."</em>
-                </p>
-              </div>
-
-              <div className="bg-gray-50 rounded-3xl p-8 md:p-10 flex flex-col md:flex-row items-center gap-6 border border-gray-100">
-                <div className="bg-white p-4 rounded-full shadow-sm">
-                   <img src="/icon-192.png" className="w-12 h-12 grayscale opacity-50" alt="Logotipo" />
-                </div>
-                <div className="text-center md:text-left">
-                  <p className="text-gray-900 font-bold text-lg mb-1">Consejero del Obrero</p>
-                  <p className="text-gray-500 text-sm italic">Plataforma de estudio y consulta.</p>
-                </div>
-              </div>
-
-            </div>
           </div>
         </div>
-        
+
         <div className="py-12 text-center">
-            <Link href="/biblioteca" className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 hover:text-amber-600 transition-colors">
-                ← Volver a la Biblioteca
-            </Link>
+          <Link
+            href="/biblioteca"
+            className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 hover:text-amber-600 transition-colors"
+          >
+            ← Volver a la Biblioteca
+          </Link>
         </div>
       </section>
     </main>
