@@ -191,7 +191,7 @@ export default function LandingPage() {
         
         {/* CAMBIO 2: DISCLAIMER PARA EVITAR REGAÑOS */}
         <p className="text-[10px] text-gray-400 font-light max-w-xl mx-auto leading-relaxed mb-6 px-4">
-          Esta plataforma es un archivo personal destinado a la edificación ministerial y no representa un órgano oficial administrativo de la iglesia.
+          Esta plataforma es un archivo personal destinado a la edificación ministerial y de la iglesia.
         </p>
         
         <p className="text-[8px] text-gray-600 italic font-serif">
