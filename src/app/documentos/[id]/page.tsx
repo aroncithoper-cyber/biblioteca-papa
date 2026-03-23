@@ -7,9 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import FlipbookViewer from "@/components/FlipbookViewer";
 
-// --- AQUÍ ESTÁ LA SOLUCIÓN AL ERROR DEL PDF ---
 import { pdfjs } from 'react-pdf';
-// Le decimos a la app dónde encontrar el "cerebro" para leer los PDFs
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export default function DocumentoPage() {
@@ -20,6 +18,9 @@ export default function DocumentoPage() {
   const [title, setTitle] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
   const [loading, setLoading] = useState(true);
+  
+  // --- MODO NOCTURNO PRO ---
+  const [isNightMode, setIsNightMode] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -41,7 +42,6 @@ export default function DocumentoPage() {
 
         setTitle(data.title || "Volumen de Estudio");
 
-        // Verificamos si existe fileUrl o pdfUrl (por si acaso)
         const fileUrl = data.fileUrl || data.pdfUrl;
 
         if (!fileUrl) {
@@ -64,14 +64,14 @@ export default function DocumentoPage() {
   }, [id, router]);
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif transition-colors duration-500">
+    <main className={`min-h-screen font-serif transition-colors duration-700 ${isNightMode ? 'bg-[#121212] text-gray-300' : 'bg-[#fcfaf7] text-gray-900'}`}>
       <Header />
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         {/* Navegación Superior */}
-        <div className="flex items-center justify-between mb-12 border-b border-amber-100 pb-6">
+        <div className={`flex items-center justify-between mb-12 border-b pb-6 ${isNightMode ? 'border-gray-800' : 'border-amber-100'}`}>
           <button
-            className="group flex items-center gap-3 text-[11px] uppercase tracking-[0.3em] text-gray-400 hover:text-black transition-all"
+            className={`group flex items-center gap-3 text-[11px] uppercase tracking-[0.3em] transition-all ${isNightMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-black'}`}
             onClick={() => router.push("/biblioteca")}
           >
             <span className="text-xl group-hover:-translate-x-2 transition-transform">
@@ -81,6 +81,19 @@ export default function DocumentoPage() {
           </button>
 
           <div className="flex items-center gap-4">
+            {/* BOTÓN MODO LECTURA NOCTURNA */}
+            <button 
+                onClick={() => setIsNightMode(!isNightMode)}
+                className={`hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-bold uppercase tracking-widest transition-all mr-2 ${
+                    isNightMode 
+                    ? "bg-gray-800 border-gray-700 text-amber-400 hover:bg-gray-700" 
+                    : "bg-white border-amber-200 text-gray-600 hover:bg-amber-50"
+                }`}
+            >
+                <span className="text-sm">{isNightMode ? "☀️" : "🌙"}</span>
+                <span>{isNightMode ? "Modo Día" : "Modo Noche"}</span>
+            </button>
+
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
             <span className="text-[11px] uppercase tracking-[0.3em] text-amber-700 font-bold">
               Lectura Protegida
@@ -88,54 +101,70 @@ export default function DocumentoPage() {
           </div>
         </div>
 
+        {/* Botón flotante Modo Noche (Solo visible en móviles) */}
+        <button 
+            onClick={() => setIsNightMode(!isNightMode)}
+            className={`sm:hidden flex items-center justify-center w-10 h-10 rounded-full border shadow-lg transition-all mx-auto mb-6 ${
+                isNightMode 
+                ? "bg-gray-800 border-gray-700 text-amber-400" 
+                : "bg-white border-amber-200 text-gray-600"
+            }`}
+        >
+            <span className="text-lg">{isNightMode ? "☀️" : "🌙"}</span>
+        </button>
+
         {/* Título */}
         <div className="text-center mb-16 space-y-4">
-          <p className="text-xs uppercase tracking-[0.5em] text-amber-600/60">
+          <p className={`text-xs uppercase tracking-[0.5em] ${isNightMode ? 'text-amber-600/40' : 'text-amber-600/60'}`}>
             Legacy Collection
           </p>
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 tracking-tighter max-w-4xl mx-auto leading-tight">
+          <h1 className={`text-4xl md:text-6xl font-bold tracking-tighter max-w-4xl mx-auto leading-tight ${isNightMode ? 'text-gray-100' : 'text-gray-900'}`}>
             {loading ? "Abriendo los archivos..." : title}
           </h1>
           <div className="flex justify-center items-center gap-4">
-            <div className="h-px w-16 bg-gray-200"></div>
+            <div className={`h-px w-16 ${isNightMode ? 'bg-gray-800' : 'bg-gray-200'}`}></div>
             <img
               src="/icon-512.png"
-              className="w-6 h-6 grayscale opacity-30"
+              className={`w-6 h-6 opacity-30 ${isNightMode ? 'grayscale invert' : 'grayscale'}`}
               alt="decor"
             />
-            <div className="h-px w-16 bg-gray-200"></div>
+            <div className={`h-px w-16 ${isNightMode ? 'bg-gray-800' : 'bg-gray-200'}`}></div>
           </div>
         </div>
 
         {/* Visor */}
         <div className="relative group">
           {loading ? (
-            <div className="flex flex-col items-center justify-center min-h-[650px] bg-white/50 backdrop-blur-sm rounded-[40px] border border-amber-100 shadow-inner">
+            <div className={`flex flex-col items-center justify-center min-h-[650px] rounded-[40px] border shadow-inner ${isNightMode ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 backdrop-blur-sm border-amber-100'}`}>
               <div className="relative">
-                <div className="w-16 h-16 border-2 border-amber-100 border-t-amber-600 rounded-full animate-spin"></div>
+                <div className={`w-16 h-16 border-2 border-t-amber-600 rounded-full animate-spin ${isNightMode ? 'border-gray-800' : 'border-amber-100'}`}></div>
                 <img
                   src="/icon-512.png"
-                  className="w-6 h-6 absolute inset-0 m-auto opacity-20"
+                  className={`w-6 h-6 absolute inset-0 m-auto opacity-20 ${isNightMode ? 'invert' : ''}`}
                   alt=""
                 />
               </div>
-              <p className="mt-6 text-sm italic text-amber-800/40 tracking-widest uppercase">
+              <p className={`mt-6 text-sm italic tracking-widest uppercase ${isNightMode ? 'text-gray-500' : 'text-amber-800/40'}`}>
                 Preparando ejemplar único
               </p>
             </div>
           ) : (
-            <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 p-2 md:p-8 bg-white/40 rounded-[40px] shadow-2xl shadow-amber-900/5 border border-white/60">
+            <div className={`animate-in fade-in slide-in-from-bottom-10 duration-1000 p-2 md:p-8 rounded-[40px] shadow-2xl border transition-all duration-700 ${
+                isNightMode 
+                ? 'bg-gray-900 border-gray-800 shadow-black/50 filter brightness-[0.85] contrast-125 sepia-[0.3]' 
+                : 'bg-white/40 shadow-amber-900/5 border-white/60'
+            }`}>
               {pdfUrl && <FlipbookViewer fileUrl={pdfUrl} />}
             </div>
           )}
         </div>
 
         {/* Pie */}
-        <div className="mt-20 text-center pb-12 border-t border-amber-50 mx-auto max-w-xs pt-8">
-          <p className="text-[10px] uppercase tracking-[0.5em] text-gray-300 leading-loose">
+        <div className={`mt-20 text-center pb-12 border-t mx-auto max-w-xs pt-8 ${isNightMode ? 'border-gray-800' : 'border-amber-50'}`}>
+          <p className={`text-[10px] uppercase tracking-[0.5em] leading-loose ${isNightMode ? 'text-gray-500' : 'text-gray-300'}`}>
             Jose Enrique Perez Leon
             <br />
-            <span className="text-amber-600/40 font-bold italic text-xs">
+            <span className={`font-bold italic text-xs ${isNightMode ? 'text-amber-700/30' : 'text-amber-600/40'}`}>
               Consejero del Obrero
             </span>
           </p>
