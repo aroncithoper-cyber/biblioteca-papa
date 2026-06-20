@@ -36,9 +36,11 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
   const [viewMode, setViewMode] = useState<ViewMode>("flip");
   const [bookDimensions, setBookDimensions] = useState({ width: 380, height: 560 });
+  const [isMobile, setIsMobile] = useState(false);
 
   const isZoomedFlip = zoom > 1.01;
   const renderScale = 2.0;
+  const maxZoom = isMobile ? 1.5 : 3.0;
 
   // --- 1. LÓGICA DE GUARDADO DE PROGRESO (Resume Reading) ---
   const storageKey = `progress_${fileUrl}`;
@@ -68,15 +70,20 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     }
   }, [loading, totalPages, storageKey]);
 
-  // --- AUTO-DETECTAR MÓVIL ---
+  // --- AUTO-DETECTAR MÓVIL: modo scroll por defecto ---
   useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
     const apply = () => {
-      const isMobile = window.matchMedia("(max-width: 767px)").matches;
-      if (isMobile) setViewMode("scroll");
+      const mobile = mq.matches;
+      setIsMobile(mobile);
+      if (mobile) {
+        setViewMode("scroll");
+        setZoom((z) => Math.min(z, 1.5));
+      }
     };
     apply();
-    window.addEventListener("resize", apply);
-    return () => window.removeEventListener("resize", apply);
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
   }, []);
 
   // --- BLOQUEO DE SEGURIDAD REFORZADO ---
@@ -268,89 +275,119 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
   return (
     <div
-      className={`w-full flex flex-col items-center gap-4 py-4 select-none transition-colors duration-500 min-h-screen ${
+      className={`w-full flex flex-col items-center gap-3 md:gap-4 py-2 md:py-4 select-none transition-colors duration-500 min-h-0 md:min-h-screen overflow-x-hidden ${
         theme === "dark" ? "bg-[#121212]" : "bg-gray-50"
       }`}
       onContextMenu={(e) => e.preventDefault()} // Bloqueo Clic Derecho
     >
       {/* --- NOTIFICACIÓN DE RESUME READING --- */}
       {resumeMsg && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] bg-black/80 text-white px-6 py-2 rounded-full text-xs font-bold animate-bounce shadow-xl backdrop-blur-md flex items-center gap-2">
-          <span>{resumeMsg}</span>
-          <button onClick={() => setResumeMsg("")} className="ml-2 text-gray-400 hover:text-white">✕</button>
+        <div className="fixed top-[4.5rem] md:top-20 left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] bg-black/80 text-white px-4 sm:px-6 py-2 rounded-full text-xs font-bold animate-bounce shadow-xl backdrop-blur-md flex items-center gap-2">
+          <span className="truncate">{resumeMsg}</span>
+          <button type="button" onClick={() => setResumeMsg("")} className="ml-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-gray-400 hover:text-white flex-shrink-0" aria-label="Cerrar aviso">✕</button>
         </div>
       )}
 
       {/* --- BARRA DE HERRAMIENTAS --- */}
-      <div className={`sticky top-4 z-50 flex flex-wrap items-center justify-center gap-3 px-4 py-2 backdrop-blur-xl border rounded-full shadow-2xl mx-4 max-w-full transition-colors duration-300 ${
-         theme === 'dark' ? 'bg-gray-900/80 border-gray-700' : 'bg-white/95 border-amber-100'
-      }`}>
-        <button
-          onClick={() => setViewMode(viewMode === "flip" ? "scroll" : "flip")}
-          className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-full text-[10px] font-bold uppercase hover:shadow-lg transition-all transform hover:scale-105"
-        >
-          {viewMode === "flip" ? "📱 Modo Ebook" : "📖 Modo Libro 3D"}
-        </button>
-
-        <div className="w-px h-4 bg-gray-300 hidden sm:block" />
-
-        <div className={`flex gap-1 p-1 rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-          {(["light", "sepia", "dark"] as Theme[]).map((t) => (
+      <div
+        className={`sticky top-2 md:top-4 z-50 w-[calc(100%-1rem)] max-w-4xl mx-auto px-3 py-3 md:px-4 md:py-2 backdrop-blur-xl border rounded-2xl md:rounded-full shadow-2xl transition-colors duration-300 ${
+          theme === "dark" ? "bg-gray-900/90 border-gray-700" : "bg-white/95 border-amber-100"
+        }`}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
+          {/* Fila 1: modo + temas */}
+          <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
             <button
-              key={t}
-              onClick={() => setTheme(t)}
-              className={`w-6 h-6 rounded-full border transition-transform ${
-                theme === t ? "ring-2 ring-amber-500 scale-110" : "opacity-50"
-              } ${
-                t === "light"
-                  ? "bg-white"
-                  : t === "sepia"
-                  ? "bg-[#f4ecd8]"
-                  : "bg-[#2c2c2c]"
-              }`}
-            />
-          ))}
-        </div>
+              type="button"
+              onClick={() => setViewMode(viewMode === "flip" ? "scroll" : "flip")}
+              className="min-h-[44px] flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-full text-[10px] sm:text-[10px] font-bold uppercase hover:shadow-lg transition-all active:scale-95"
+            >
+              {viewMode === "flip" ? "📱 Modo Ebook" : "📖 Modo Libro 3D"}
+            </button>
 
-        <div className="w-px h-4 bg-gray-300 hidden sm:block" />
-        
-        {/* Zoom Controls */}
-        <div className={`flex items-center border rounded-full px-2 ${theme === 'dark' ? 'bg-black border-gray-700 text-white' : 'bg-white text-black'}`}>
-          <button
-            className="px-2 font-bold hover:text-amber-600"
-            onClick={() => setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, 3.0))}
-          >
-            –
-          </button>
-          <span className="text-[10px] w-10 text-center font-black">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            className="px-2 font-bold hover:text-amber-600"
-            onClick={() => setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.5, 3.0))}
-          >
-            +
-          </button>
-        </div>
+            <div className="w-px h-6 bg-gray-300 hidden sm:block" />
 
-        <form onSubmit={handleGoToSubmit} className="flex items-center gap-1 border-l pl-3 border-gray-200">
-          <input
-            type="number"
-            placeholder={currentPage.toString()}
-            className={`w-12 px-2 py-1 text-[10px] text-center border rounded outline-none focus:border-amber-500 ${
-                theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white'
-            }`}
-            value={targetPage}
-            onChange={(e) => setTargetPage(e.target.value)}
-          />
-          <button type="submit" className="text-[10px] font-bold uppercase text-amber-600 hover:text-amber-700">
-            Ir
-          </button>
-        </form>
+            <div
+              className={`flex gap-1.5 p-1.5 rounded-full ${theme === "dark" ? "bg-gray-800" : "bg-gray-100"}`}
+              role="group"
+              aria-label="Tema de lectura"
+            >
+              {(["light", "sepia", "dark"] as Theme[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  aria-label={t === "light" ? "Tema claro" : t === "sepia" ? "Tema sepia" : "Tema oscuro"}
+                  onClick={() => setTheme(t)}
+                  className={`min-w-[44px] min-h-[44px] w-11 h-11 md:min-w-0 md:min-h-0 md:w-7 md:h-7 rounded-full border transition-transform ${
+                    theme === t ? "ring-2 ring-amber-500 scale-105" : "opacity-60"
+                  } ${
+                    t === "light"
+                      ? "bg-white"
+                      : t === "sepia"
+                      ? "bg-[#f4ecd8]"
+                      : "bg-[#2c2c2c]"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Fila 2: zoom + ir a página */}
+          <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap border-t border-gray-200/60 pt-3 sm:border-t-0 sm:pt-0">
+            <div className="w-px h-6 bg-gray-300 hidden sm:block" />
+
+            <div
+              className={`flex items-center border rounded-full ${theme === "dark" ? "bg-black border-gray-700 text-white" : "bg-white text-black border-gray-200"}`}
+            >
+              <button
+                type="button"
+                aria-label="Reducir zoom"
+                className="min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 px-3 md:px-2 font-bold hover:text-amber-600 flex items-center justify-center"
+                onClick={() => setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, maxZoom))}
+              >
+                –
+              </button>
+              <span className="text-[10px] w-12 text-center font-black tabular-nums">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                aria-label="Aumentar zoom"
+                className="min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 px-3 md:px-2 font-bold hover:text-amber-600 flex items-center justify-center"
+                onClick={() => setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.5, maxZoom))}
+              >
+                +
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleGoToSubmit}
+              className={`flex items-center gap-2 pl-0 sm:pl-3 sm:border-l ${theme === "dark" ? "border-gray-700" : "border-gray-200"}`}
+            >
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder={currentPage.toString()}
+                aria-label="Número de página"
+                className={`w-14 min-h-[44px] md:min-h-0 md:w-12 px-2 py-2 md:py-1 text-xs md:text-[10px] text-center border rounded-lg md:rounded outline-none focus:border-amber-500 ${
+                  theme === "dark" ? "bg-gray-800 text-white border-gray-600" : "bg-white border-gray-200"
+                }`}
+                value={targetPage}
+                onChange={(e) => setTargetPage(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="min-h-[44px] md:min-h-0 px-4 md:px-0 text-xs md:text-[10px] font-bold uppercase text-amber-600 hover:text-amber-700"
+              >
+                Ir
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
 
       {loading && (
-        <div className="flex flex-col items-center justify-center py-32 animate-pulse">
+        <div className="flex flex-col items-center justify-center py-16 md:py-32 animate-pulse px-4">
           <div className="relative w-16 h-16 mb-4">
              <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
              <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin"></div>
@@ -375,9 +412,9 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           }`}
         >
           <div
-            className="mx-auto"
+            className="mx-auto max-w-full overflow-x-hidden"
             style={{
-              transform: `scale(${zoom})`,
+              transform: isMobile ? "none" : `scale(${zoom})`,
               transformOrigin: "top center",
               transition: "transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
             }}
@@ -434,15 +471,15 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
       {/* --- MODO EBOOK (SCROLL) --- */}
       {viewMode === "scroll" && !loading && pages.length > 0 && (
-        <div className="w-full max-w-3xl px-0 flex flex-col gap-0 pb-32">
-          <div className={`text-center py-3 text-[10px] font-bold uppercase tracking-widest sticky top-0 z-20 ${headerBg} backdrop-blur-md border-b border-gray-100/10 shadow-sm`}>
-            Vista Continua • {Math.round(progress)}% Leído
+        <div className="w-full max-w-3xl px-0 flex flex-col gap-0 pb-24 md:pb-32 overflow-x-hidden">
+          <div className={`text-center py-2.5 md:py-3 text-[10px] font-bold uppercase tracking-widest sticky top-0 z-20 ${headerBg} backdrop-blur-md border-b border-gray-100/10 shadow-sm`}>
+            Vista Continua • Pág. {currentPage}{totalPages > 0 ? ` / ${totalPages}` : ""}
           </div>
 
           <div
-            className="w-full transition-transform duration-200 ease-out origin-top"
+            className="w-full transition-transform duration-200 ease-out origin-top max-w-full overflow-x-hidden"
             style={{
-              transform: `scale(${zoom})`,
+              transform: isMobile ? "none" : `scale(${zoom})`,
               overscrollBehavior: "contain",
             }}
           >
@@ -471,7 +508,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
                   }}
                 />
 
-                <div className="absolute bottom-2 right-2 bg-black/40 text-white px-2 py-0.5 rounded text-[9px] font-bold opacity-0 hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-2 right-2 bg-black/40 text-white px-2 py-0.5 rounded text-[9px] font-bold md:opacity-0 md:hover:opacity-100 transition-opacity">
                   {idx + 1}
                 </div>
               </div>

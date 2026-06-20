@@ -19,6 +19,8 @@ import { db, storage, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import AdminTabs, { type AdminTabId } from "@/components/admin/AdminTabs";
+import { isAdminEmail } from "@/lib/adminEmails";
 
 // Helper para YouTube
 const getYouTubeID = (url: string) => {
@@ -28,14 +30,13 @@ const getYouTubeID = (url: string) => {
 };
 
 export default function AdminPage() {
-  const ADMIN_EMAILS = ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"];
-
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   
   const [docs, setDocs] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]); 
   const [videos, setVideos] = useState<any[]>([]); 
+  const [ensenanzas, setEnsenanzas] = useState<any[]>([]);
   const [userEmailToAuthorize, setUserEmailToAuthorize] = useState<{ [key: string]: string }>({});
   const router = useRouter();
 
@@ -56,6 +57,19 @@ export default function AdminPage() {
   const [vidLink, setVidLink] = useState("");
   const [vidCategory, setVidCategory] = useState(""); 
 
+  // ENSEÑANZAS (solo links — sin subir audios)
+  // TODO: Las reglas de Firestore deben restringir escritura en `ensenanzas` solo a admins.
+  const [ensTitle, setEnsTitle] = useState("");
+  const [ensDesc, setEnsDesc] = useState("");
+  const [ensCategory, setEnsCategory] = useState("");
+  const [ensPredicador, setEnsPredicador] = useState("");
+  const [ensFecha, setEnsFecha] = useState("");
+  const [ensDuration, setEnsDuration] = useState("");
+  const [ensTelegram, setEnsTelegram] = useState("");
+  const [ensYoutube, setEnsYoutube] = useState("");
+  const [ensStatus, setEnsStatus] = useState<"published" | "coming_soon">("published");
+  const [ensOrder, setEnsOrder] = useState("0");
+
   // Estados Notificaciones
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
@@ -63,12 +77,26 @@ export default function AdminPage() {
   // ESTADOS DE EDICIÓN
   const [editingDoc, setEditingDoc] = useState<any>(null); // Para editar libros
   const [editingVideo, setEditingVideo] = useState<any>(null); // Para editar videos
+  const [editingEnsenanza, setEditingEnsenanza] = useState<any>(null);
+
+  const [activeTab, setActiveTab] = useState<AdminTabId>("libros");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const handleTabChange = (tab: AdminTabId) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const userEmail = user?.email?.toLowerCase() || "";
-      if (!user || !ADMIN_EMAILS.includes(userEmail)) {
-        router.push("/biblioteca"); 
+      if (!user || !isAdminEmail(user.email)) {
+        router.push("/biblioteca");
       } else {
         setIsAdmin(true);
         loadData();
@@ -90,6 +118,10 @@ export default function AdminPage() {
       const qVids = query(collection(db, "videos"), orderBy("createdAt", "desc"));
       const snapVids = await getDocs(qVids);
       setVideos(snapVids.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+
+      const qEns = query(collection(db, "ensenanzas"), orderBy("createdAt", "desc"));
+      const snapEns = await getDocs(qEns);
+      setEnsenanzas(snapEns.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
     } catch (e: any) { console.error("Error:", e); }
   };
 
@@ -273,30 +305,124 @@ export default function AdminPage() {
     finally { setLoading(false); }
   };
 
+  const uploadEnsenanza = async () => {
+    if (!ensTitle.trim()) return alert("⚠️ Escribe un título");
+
+    setLoading(true);
+    try {
+      await addDoc(collection(db, "ensenanzas"), {
+        title: ensTitle.trim(),
+        description: ensDesc.trim(),
+        category: ensCategory.trim() || "General",
+        predicador: ensPredicador.trim(),
+        fecha: ensFecha.trim(),
+        duration: ensDuration.trim(),
+        telegram_url: ensTelegram.trim(),
+        youtube_url: ensYoutube.trim(),
+        status: ensStatus,
+        order: parseInt(ensOrder, 10) || 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      alert("🎧 Enseñanza publicada");
+      setEnsTitle("");
+      setEnsDesc("");
+      setEnsCategory("");
+      setEnsPredicador("");
+      setEnsFecha("");
+      setEnsDuration("");
+      setEnsTelegram("");
+      setEnsYoutube("");
+      setEnsStatus("published");
+      setEnsOrder("0");
+      loadData();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateEnsenanza = async () => {
+    if (!editingEnsenanza) return;
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "ensenanzas", editingEnsenanza.id), {
+        title: editingEnsenanza.title,
+        description: editingEnsenanza.description || "",
+        category: editingEnsenanza.category || "General",
+        predicador: editingEnsenanza.predicador || "",
+        fecha: editingEnsenanza.fecha || "",
+        duration: editingEnsenanza.duration || "",
+        telegram_url: (editingEnsenanza.telegram_url || "").trim(),
+        youtube_url: (editingEnsenanza.youtube_url || "").trim(),
+        status: editingEnsenanza.status || "published",
+        order: parseInt(String(editingEnsenanza.order ?? 0), 10) || 0,
+        updatedAt: serverTimestamp(),
+      });
+      alert("✅ Enseñanza actualizada");
+      setEditingEnsenanza(null);
+      loadData();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteEnsenanza = async (id: string) => {
+    if (!confirm("¿Borrar enseñanza?")) return;
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, "ensenanzas", id));
+      loadData();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendPushNotification = async () => {
     if (!notifTitle.trim() || !notifBody.trim()) return alert("⚠️ Escribe título y mensaje.");
     if (!confirm(`¿Enviar a TODOS?\n\n"${notifTitle}"`)) return;
 
     setLoading(true);
     try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        alert("Sesión expirada. Vuelve a iniciar sesión.");
+        return;
+      }
+
       const res = await fetch("/api/send-notification", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ title: notifTitle, body: notifBody }),
       });
       const data = await res.json();
       if (res.ok) {
         alert(`✅ Enviado con éxito.\nDispositivos: ${data.sentCount || 0}`);
         setNotifTitle(""); setNotifBody("");
-      } else { alert("Error: " + (data.error || "Desconocido")); }
-    } catch (e: any) { alert("Error conexión: " + e.message); } 
+      } else if (res.status === 401) {
+        alert("Sesión inválida o expirada. Vuelve a iniciar sesión.");
+      } else if (res.status === 403) {
+        alert("No tienes permiso para enviar notificaciones.");
+      } else {
+        alert("Error: " + (data.error || "Desconocido"));
+      }
+    } catch (e: any) { alert("Error conexión: " + e.message); }
     finally { setLoading(false); }
   };
 
   if (!isAdmin) return <div className="min-h-screen bg-[#fcfaf7] flex items-center justify-center"><p className="animate-pulse">Verificando...</p></div>;
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20 relative">
+    <main className="min-h-screen bg-[#fcfaf7] font-serif pb-20 relative overflow-x-hidden">
       <Header />
       
       {/* --- MODAL EDICIÓN LIBROS --- */}
@@ -388,198 +514,392 @@ export default function AdminPage() {
         </div>
       )}
 
-      <section className="max-w-5xl mx-auto px-6 py-16">
-        <h1 className="text-5xl font-bold text-gray-900 tracking-tighter mb-12 border-b border-amber-100 pb-10">Administración</h1>
-
-        <div className="grid md:grid-cols-2 gap-10 mb-10">
-          {/* SECCIÓN 01: NUEVO LIBRO */}
-          <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-amber-50">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
-               <span className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center text-[10px]">01</span>
-               Nuevo Volumen
-            </h2>
-            <div className="space-y-4">
-              <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título del Libro..." value={title} onChange={(e) => setTitle(e.target.value)} />
-              
-              <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Ampliación de Lecciones)..." value={category} onChange={(e) => setCategory(e.target.value)} />
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className={`relative h-24 bg-[#fcfaf7] border-2 border-dashed ${file ? 'border-green-500 bg-green-50' : 'border-amber-100'} rounded-2xl flex flex-col items-center justify-center`}>
-                  <input id="pdfInput" type="file" accept="application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
-                  <span className={`text-[9px] font-bold uppercase ${file ? 'text-green-700' : 'text-amber-600'}`}>{file ? "PDF Listo" : "Subir PDF"}</span>
-                </div>
-                <div className={`relative h-24 bg-[#fcfaf7] border-2 border-dashed ${cover ? 'border-green-500 bg-green-50' : 'border-amber-100'} rounded-2xl flex flex-col items-center justify-center`}>
-                  <input id="coverInput" type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e)=>setCover(e.target.files?.[0]||null)} />
-                  <span className={`text-[9px] font-bold uppercase ${cover ? 'text-green-700' : 'text-amber-600'}`}>{cover ? "Portada Lista" : "Subir Portada"}</span>
-                </div>
+      {/* --- MODAL EDICIÓN ENSEÑANZAS --- */}
+      {editingEnsenanza && (
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300 my-8">
+            <h3 className="text-xl font-bold mb-6 text-amber-900">Editar Enseñanza</h3>
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar pr-1">
+              <input
+                value={editingEnsenanza.title}
+                onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, title: e.target.value })}
+                placeholder="Título"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+              />
+              <textarea
+                value={editingEnsenanza.description || ""}
+                onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, description: e.target.value })}
+                placeholder="Descripción"
+                rows={3}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none resize-none"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  value={editingEnsenanza.category || ""}
+                  onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, category: e.target.value })}
+                  placeholder="Categoría"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+                <input
+                  value={editingEnsenanza.predicador || ""}
+                  onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, predicador: e.target.value })}
+                  placeholder="Predicador"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
               </div>
-              <label className="flex items-center gap-2 cursor-pointer py-2">
-                <input type="checkbox" checked={isPublic} onChange={(e)=>setIsPublic(e.target.checked)} className="accent-black" />
-                <span className="text-[10px] font-bold uppercase text-gray-400">Hacer Público</span>
-              </label>
-              <button onClick={uploadDoc} disabled={loading} className="w-full py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-amber-600 transition-all disabled:opacity-50">
-                {loading ? "Subiendo..." : "Publicar Libro"}
-              </button>
-            </div>
-          </div>
-
-          {/* SECCIÓN 02: GALERÍA */}
-          <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-amber-50">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-amber-700">
-               <span className="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center text-[10px]">02</span>
-               Galería
-            </h2>
-            <div className="space-y-4">
-              <div className="relative h-36 bg-amber-50/30 border-2 border-dashed border-amber-100 rounded-[2rem] flex flex-col items-center justify-center">
-                <input id="galleryInput" type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e)=>setGalleryFile(e.target.files?.[0]||null)} />
-                <span className="text-[10px] font-bold uppercase text-amber-600 px-4 text-center">{galleryFile ? galleryFile.name : "Subir Foto"}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  value={editingEnsenanza.fecha || ""}
+                  onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, fecha: e.target.value })}
+                  placeholder="Fecha (ej. Mar 2025)"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+                <input
+                  value={editingEnsenanza.duration || ""}
+                  onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, duration: e.target.value })}
+                  placeholder="Duración (ej. 45 min)"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
               </div>
-              <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción..." value={galleryDesc} onChange={(e)=>setGalleryDesc(e.target.value)} />
-              <button onClick={uploadToGallery} disabled={loading} className="w-full py-4 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
-                {loading ? "..." : "Añadir a Galería"}
-              </button>
+              <input
+                value={editingEnsenanza.telegram_url || ""}
+                onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, telegram_url: e.target.value })}
+                placeholder="Link de Telegram (mensaje o canal)"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none"
+              />
+              <input
+                value={editingEnsenanza.youtube_url || ""}
+                onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, youtube_url: e.target.value })}
+                placeholder="Link de YouTube (opcional)"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select
+                  value={editingEnsenanza.status || "published"}
+                  onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, status: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none min-h-[44px]"
+                >
+                  <option value="published">Publicado</option>
+                  <option value="coming_soon">Próximamente</option>
+                </select>
+                <input
+                  type="number"
+                  value={editingEnsenanza.order ?? 0}
+                  onChange={(e) => setEditingEnsenanza({ ...editingEnsenanza, order: e.target.value })}
+                  placeholder="Orden"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingEnsenanza(null)} className="flex-1 py-3 text-gray-500 font-bold text-xs uppercase hover:bg-gray-100 rounded-xl">Cancelar</button>
+                <button onClick={handleUpdateEnsenanza} disabled={loading} className="flex-1 py-3 bg-amber-700 text-white font-bold text-xs uppercase rounded-xl hover:bg-amber-900 shadow-lg">{loading ? "..." : "Guardar"}</button>
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        {/* --- GRID MEDIO --- */}
-        <div className="grid md:grid-cols-2 gap-10 mb-20">
-            {/* SECCIÓN 03: VIDEOS */}
-            <div className="bg-white rounded-[3rem] p-8 shadow-2xl border border-red-50">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-red-700">
-                    <span className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px]">03</span>
-                    Videos
+      <section className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-12">
+        <h1 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tighter mb-6 md:mb-8 border-b border-amber-100 pb-6 md:pb-8">
+          Administración
+        </h1>
+
+        <AdminTabs
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          counts={{
+            libros: docs.length,
+            videos: videos.length,
+            ensenanzas: ensenanzas.length,
+            solicitudes: requests.length,
+          }}
+        />
+
+        <div className="mt-6 md:mt-8 min-w-0">
+          {/* TAB: LIBROS */}
+          {activeTab === "libros" && (
+            <div className="space-y-8 md:space-y-10">
+              <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl border border-amber-50">
+                <h2 className="text-lg md:text-xl font-bold mb-6 flex items-center gap-3">
+                  <span className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center text-[10px]">01</span>
+                  Nuevo Volumen
                 </h2>
                 <div className="space-y-4">
-                    <div className="space-y-4">
-                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Título" value={vidTitle} onChange={(e)=>setVidTitle(e.target.value)} />
-                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Descripción" value={vidDesc} onChange={(e)=>setVidDesc(e.target.value)} />
-                        
-                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Estudios, Himnos...)" value={vidCategory} onChange={(e)=>setVidCategory(e.target.value)} />
-                        
-                        <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none" placeholder="Link de YouTube" value={vidLink} onChange={(e)=>setVidLink(e.target.value)} />
-                        <button onClick={uploadVideo} disabled={loading} className="w-full py-4 bg-red-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
-                            {loading ? "..." : "Agregar Video"}
-                        </button>
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Título del Libro..." value={title} onChange={(e) => setTitle(e.target.value)} />
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Ampliación de Lecciones)..." value={category} onChange={(e) => setCategory(e.target.value)} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className={`relative min-h-[96px] bg-[#fcfaf7] border-2 border-dashed ${file ? "border-green-500 bg-green-50" : "border-amber-100"} rounded-2xl flex flex-col items-center justify-center`}>
+                      <input id="pdfInput" type="file" accept="application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                      <span className={`text-[9px] font-bold uppercase ${file ? "text-green-700" : "text-amber-600"}`}>{file ? "PDF Listo" : "Subir PDF"}</span>
                     </div>
-                    <div className="bg-[#fcfaf7] rounded-2xl p-4 h-48 overflow-y-auto custom-scrollbar">
-                        <div className="space-y-3">
-                            {videos.map(v => (
-                                <div key={v.id} className="bg-white p-3 rounded-xl border border-gray-100 flex gap-3 items-center shadow-sm">
-                                    <img src={`https://img.youtube.com/vi/${v.youtubeId}/default.jpg`} className="w-10 h-10 rounded object-cover" alt="" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold truncate">{v.title}</p>
-                                        <p className="text-[9px] text-gray-500 uppercase">{v.category || "General"}</p>
-                                    </div>
-                                    <div className="flex gap-1">
-                                        <button onClick={()=>setEditingVideo(v)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full font-bold text-xs">✎</button>
-                                        <button onClick={()=>deleteVideo(v.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full font-bold text-xs">✕</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                    <div className={`relative min-h-[96px] bg-[#fcfaf7] border-2 border-dashed ${cover ? "border-green-500 bg-green-50" : "border-amber-100"} rounded-2xl flex flex-col items-center justify-center`}>
+                      <input id="coverInput" type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setCover(e.target.files?.[0] || null)} />
+                      <span className={`text-[9px] font-bold uppercase ${cover ? "text-green-700" : "text-amber-600"}`}>{cover ? "Portada Lista" : "Subir Portada"}</span>
                     </div>
+                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer py-2 min-h-[44px]">
+                    <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="accent-black w-5 h-5" />
+                    <span className="text-[10px] font-bold uppercase text-gray-400">Hacer Público</span>
+                  </label>
+                  <button onClick={uploadDoc} disabled={loading} className="w-full min-h-[44px] py-4 bg-black text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-amber-600 transition-all disabled:opacity-50">
+                    {loading ? "Subiendo..." : "Publicar Libro"}
+                  </button>
                 </div>
-            </div>
+              </div>
 
-            {/* SECCIÓN 04: NOTIFICACIONES */}
-            <div className="bg-gradient-to-br from-indigo-900 to-blue-900 rounded-[3rem] p-8 shadow-2xl text-white">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
-                    <span className="w-8 h-8 bg-white text-indigo-900 rounded-full flex items-center justify-center text-[10px]">04</span>
-                    Enviar Notificación
-                </h2>
-                <div className="space-y-5">
-                    <input className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none" placeholder="Título" value={notifTitle} onChange={(e)=>setNotifTitle(e.target.value)} />
-                    <textarea className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none h-32 resize-none" placeholder="Mensaje" value={notifBody} onChange={(e)=>setNotifBody(e.target.value)} />
-                    <button onClick={sendPushNotification} disabled={loading} className="w-full py-4 bg-white text-indigo-900 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all shadow-lg flex items-center justify-center gap-2">
-                        {loading ? "..." : <><span>🚀</span> Enviar a Todos</>}
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        {/* --- LISTADO DE LIBROS Y SOLICITUDES --- */}
-        {requests.length > 0 && (
-          <div className="mb-20">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 mb-8 flex items-center gap-4">
-              Solicitudes <span className="h-px flex-1 bg-amber-100"></span>
-            </h3>
-            <div className="grid gap-4">
-              {requests.map((req) => (
-                <div key={req.id} className="bg-amber-50 border border-amber-100 rounded-[2rem] p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold text-xs">?</div>
-                    <div>
-                      <p className="font-bold text-gray-900">{req.userEmail}</p>
-                      <p className="text-[10px] uppercase tracking-widest text-amber-600">Libro: {req.bookTitle}</p>
-                      {req.whatsapp && <p className="text-[9px] text-green-600 font-bold">📞 {req.whatsapp}</p>}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => authorizeUser(req.bookId, req.userEmail, req.id)} className="px-6 py-3 bg-green-600 text-white rounded-full text-[9px] font-bold uppercase hover:bg-green-700 shadow-lg">Aceptar</button>
-                    <button onClick={() => rejectRequest(req.id)} className="px-6 py-3 bg-white text-red-400 border border-gray-200 rounded-full text-[9px] font-bold uppercase hover:bg-red-50">✕</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mb-24">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-gray-400 mb-8 flex items-center gap-4">
-            Archivo Existente <span className="h-px flex-1 bg-amber-100"></span>
-          </h3>
-          <div className="space-y-4">
-            {docs.map((d) => (
-              <div key={d.id} className="bg-white border border-amber-50 rounded-[2.5rem] p-8 shadow-sm group">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                  <div className="flex items-center gap-6">
-                    {d.coverUrl ? (
-                        <img src={d.coverUrl} className="w-16 h-16 rounded-xl object-cover border border-gray-200" alt="Portada" />
-                    ) : (
-                        <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 text-[10px] font-bold">Sin Foto</div>
-                    )}
-                    <div>
-                      <p className="font-bold text-xl text-gray-900">{d.title}</p>
-                      <div className="flex gap-2 mt-1">
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${d.isPublic ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
-                            {d.isPublic ? 'Público' : 'Privado'}
-                          </span>
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest bg-gray-100 text-gray-500">
-                            {d.category || "General"}
-                          </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 flex gap-3 justify-end w-full md:w-auto">
-                    <button onClick={() => setEditingDoc(d)} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-100">Editar</button>
-                    <button onClick={async () => { if(confirm('¿Eliminar?')) { await deleteDoc(doc(db, "documents", d.id)); loadData(); }}} className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-red-100">Eliminar</button>
-                  </div>
-                </div>
-                
-                {!d.isPublic && (
-                    <div className="mt-6 pt-6 border-t border-gray-50">
-                      <p className="text-[9px] font-black uppercase text-gray-400 mb-3 tracking-widest">Usuarios con acceso:</p>
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {d.authorizedEmails?.map((email: string) => (
-                            <div key={email} className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
-                               <span className="text-xs text-gray-600">{email}</span>
-                               <button onClick={() => revokeAccess(d.id, email)} className="w-4 h-4 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-[9px] font-bold hover:bg-red-500 hover:text-white">✕</button>
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-gray-400 mb-6 flex items-center gap-4">
+                  Archivo Existente ({docs.length}) <span className="h-px flex-1 bg-amber-100"></span>
+                </h3>
+                {docs.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-12 bg-white rounded-[2rem] border border-amber-50">
+                    Aún no hay libros publicados. Usa el formulario de arriba para agregar el primero.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {docs.map((d) => (
+                      <div key={d.id} className="bg-white border border-amber-50 rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-8 shadow-sm">
+                        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
+                          <div className="flex items-center gap-4 min-w-0">
+                            {d.coverUrl ? (
+                              <img src={d.coverUrl} className="w-14 h-14 md:w-16 md:h-16 rounded-xl object-cover border border-gray-200 flex-shrink-0" alt="Portada" />
+                            ) : (
+                              <div className="w-14 h-14 md:w-16 md:h-16 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 text-[10px] font-bold flex-shrink-0">Sin Foto</div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-bold text-lg md:text-xl text-gray-900 truncate">{d.title}</p>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${d.isPublic ? "bg-green-100 text-green-700" : "bg-amber-50 text-amber-600"}`}>
+                                  {d.isPublic ? "Público" : "Privado"}
+                                </span>
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest bg-gray-100 text-gray-500">
+                                  {d.category || "General"}
+                                </span>
+                              </div>
                             </div>
-                        ))}
+                          </div>
+                          <div className="flex gap-2 w-full md:w-auto">
+                            <button onClick={() => setEditingDoc(d)} className="flex-1 md:flex-none min-h-[44px] px-4 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-100">Editar</button>
+                            <button onClick={async () => { if (confirm("¿Eliminar?")) { await deleteDoc(doc(db, "documents", d.id)); loadData(); } }} className="flex-1 md:flex-none min-h-[44px] px-4 py-2.5 bg-red-50 text-red-500 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-red-100">Eliminar</button>
+                          </div>
+                        </div>
+                        {!d.isPublic && (
+                          <div className="mt-6 pt-6 border-t border-gray-50">
+                            <p className="text-[9px] font-black uppercase text-gray-400 mb-3 tracking-widest">Usuarios con acceso:</p>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {d.authorizedEmails?.map((email: string) => (
+                                <div key={email} className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full max-w-full">
+                                  <span className="text-xs text-gray-600 truncate">{email}</span>
+                                  <button onClick={() => revokeAccess(d.id, email)} className="min-w-[28px] min-h-[28px] bg-red-100 text-red-500 rounded-full flex items-center justify-center text-[9px] font-bold hover:bg-red-500 hover:text-white flex-shrink-0">✕</button>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <input placeholder="Agregar correo..." className="flex-1 w-full bg-gray-50 px-4 py-3 min-h-[44px] rounded-lg text-xs outline-none" value={userEmailToAuthorize[d.id] || ""} onChange={(e) => setUserEmailToAuthorize({ ...userEmailToAuthorize, [d.id]: e.target.value })} />
+                              <button onClick={() => authorizeUser(d.id)} className="min-h-[44px] px-4 py-2.5 bg-gray-900 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-amber-600 sm:flex-shrink-0">Autorizar</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex gap-2">
-                        <input placeholder="Agregar correo..." className="flex-1 bg-gray-50 px-4 py-2 rounded-lg text-xs outline-none" value={userEmailToAuthorize[d.id] || ""} onChange={(e) => setUserEmailToAuthorize({ ...userEmailToAuthorize, [d.id]: e.target.value })} />
-                        <button onClick={() => authorizeUser(d.id)} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-amber-600">Autorizar</button>
-                      </div>
-                    </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* TAB: VIDEOS */}
+          {activeTab === "videos" && (
+            <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl border border-red-50">
+              <h2 className="text-lg md:text-xl font-bold mb-6 flex items-center gap-3 text-red-700">
+                <span className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px]">03</span>
+                Videos
+              </h2>
+              <div className="space-y-6">
+                <div className="space-y-4 max-w-xl">
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Título" value={vidTitle} onChange={(e) => setVidTitle(e.target.value)} />
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Descripción" value={vidDesc} onChange={(e) => setVidDesc(e.target.value)} />
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Estudios, Himnos...)" value={vidCategory} onChange={(e) => setVidCategory(e.target.value)} />
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Link de YouTube" value={vidLink} onChange={(e) => setVidLink(e.target.value)} />
+                  <button onClick={uploadVideo} disabled={loading} className="w-full min-h-[44px] py-4 bg-red-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
+                    {loading ? "..." : "Agregar Video"}
+                  </button>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-4">Videos registrados ({videos.length})</p>
+                  {videos.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-10 bg-[#fcfaf7] rounded-2xl">Aún no hay videos. Agrega uno con el formulario de arriba.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {videos.map((v) => (
+                        <div key={v.id} className="bg-[#fcfaf7] p-3 rounded-xl border border-gray-100 flex gap-3 items-center shadow-sm min-w-0">
+                          <img src={`https://img.youtube.com/vi/${v.youtubeId}/default.jpg`} className="w-12 h-12 rounded object-cover flex-shrink-0" alt="" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">{v.title}</p>
+                            <p className="text-[9px] text-gray-500 uppercase">{v.category || "General"}</p>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => setEditingVideo(v)} className="min-w-[44px] min-h-[44px] text-blue-500 hover:bg-blue-50 rounded-full font-bold text-sm flex items-center justify-center">✎</button>
+                            <button onClick={() => deleteVideo(v.id)} className="min-w-[44px] min-h-[44px] text-red-500 hover:bg-red-50 rounded-full font-bold text-sm flex items-center justify-center">✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: ENSEÑANZAS */}
+          {activeTab === "ensenanzas" && (
+            <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl border border-amber-100">
+              <h2 className="text-lg md:text-xl font-bold mb-2 flex items-center gap-3 text-amber-800">
+                <span className="w-8 h-8 bg-amber-700 text-white rounded-full flex items-center justify-center text-[10px]">05</span>
+                Enseñanzas
+              </h2>
+              <p className="text-xs text-gray-400 mb-6 pl-11">
+                Solo links a Telegram / YouTube. No se suben archivos de audio.
+              </p>
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Título *" value={ensTitle} onChange={(e) => setEnsTitle(e.target.value)} />
+                  <textarea className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 text-sm border border-gray-100 outline-none h-24 resize-none" placeholder="Descripción" value={ensDesc} onChange={(e) => setEnsDesc(e.target.value)} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Categoría" value={ensCategory} onChange={(e) => setEnsCategory(e.target.value)} />
+                    <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Predicador" value={ensPredicador} onChange={(e) => setEnsPredicador(e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Fecha" value={ensFecha} onChange={(e) => setEnsFecha(e.target.value)} />
+                    <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Duración" value={ensDuration} onChange={(e) => setEnsDuration(e.target.value)} />
+                  </div>
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Link Telegram (t.me/...)" value={ensTelegram} onChange={(e) => setEnsTelegram(e.target.value)} />
+                  <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Link YouTube (opcional)" value={ensYoutube} onChange={(e) => setEnsYoutube(e.target.value)} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <select value={ensStatus} onChange={(e) => setEnsStatus(e.target.value as "published" | "coming_soon")} className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none font-bold">
+                      <option value="published">Publicado</option>
+                      <option value="coming_soon">Próximamente</option>
+                    </select>
+                    <input type="number" className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Orden" value={ensOrder} onChange={(e) => setEnsOrder(e.target.value)} />
+                  </div>
+                  <button onClick={uploadEnsenanza} disabled={loading} className="w-full min-h-[44px] py-4 bg-amber-700 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all disabled:opacity-50">
+                    {loading ? "..." : "Publicar Enseñanza"}
+                  </button>
+                </div>
+                <div className="bg-[#fcfaf7] rounded-2xl p-4 md:max-h-[520px] overflow-y-auto custom-scrollbar">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-4">Enseñanzas registradas ({ensenanzas.length})</p>
+                  <div className="space-y-3">
+                    {ensenanzas.map((e) => (
+                      <div key={e.id} className="bg-white p-3 rounded-xl border border-gray-100 flex gap-3 items-start shadow-sm min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-lg flex-shrink-0">🎧</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold truncate">{e.title}</p>
+                          <p className="text-[9px] text-gray-500 uppercase">{e.category || "General"} · {e.predicador || "—"}</p>
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${e.status === "coming_soon" ? "bg-gray-100 text-gray-500" : "bg-green-50 text-green-700"}`}>
+                              {e.status === "coming_soon" ? "Próximo" : "Publicado"}
+                            </span>
+                            {e.telegram_url && <span className="text-[8px] text-blue-600">TG ✓</span>}
+                            {e.youtube_url && <span className="text-[8px] text-red-600">YT ✓</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button onClick={() => setEditingEnsenanza(e)} className="min-w-[44px] min-h-[44px] text-blue-500 hover:bg-blue-50 rounded-full font-bold text-sm flex items-center justify-center">✎</button>
+                          <button onClick={() => deleteEnsenanza(e.id)} className="min-w-[44px] min-h-[44px] text-red-500 hover:bg-red-50 rounded-full font-bold text-sm flex items-center justify-center">✕</button>
+                        </div>
+                      </div>
+                    ))}
+                    {ensenanzas.length === 0 && (
+                      <p className="text-sm text-gray-400 text-center py-10">Aún no hay enseñanzas. Publica la primera con el formulario.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: GALERÍA */}
+          {activeTab === "galeria" && (
+            <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl border border-amber-50 max-w-xl">
+              <h2 className="text-lg md:text-xl font-bold mb-6 flex items-center gap-3 text-amber-700">
+                <span className="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center text-[10px]">02</span>
+                Galería
+              </h2>
+              <div className="space-y-4">
+                <div className="relative min-h-[144px] bg-amber-50/30 border-2 border-dashed border-amber-100 rounded-[2rem] flex flex-col items-center justify-center">
+                  <input id="galleryInput" type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setGalleryFile(e.target.files?.[0] || null)} />
+                  <span className="text-[10px] font-bold uppercase text-amber-600 px-4 text-center">{galleryFile ? galleryFile.name : "Subir Foto"}</span>
+                </div>
+                <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Descripción..." value={galleryDesc} onChange={(e) => setGalleryDesc(e.target.value)} />
+                <button onClick={uploadToGallery} disabled={loading} className="w-full min-h-[44px] py-4 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
+                  {loading ? "..." : "Añadir a Galería"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SOLICITUDES */}
+          {activeTab === "solicitudes" && (
+            <div>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 mb-6 flex items-center gap-4">
+                Solicitudes pendientes ({requests.length}) <span className="h-px flex-1 bg-amber-100"></span>
+              </h3>
+              {requests.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-16 bg-white rounded-[2rem] border border-amber-50">
+                  No hay solicitudes pendientes. Cuando un usuario pida acceso a un libro privado, aparecerá aquí.
+                </p>
+              ) : (
+                <div className="grid gap-4">
+                  {requests.map((req) => (
+                    <div key={req.id} className="bg-amber-50 border border-amber-100 rounded-[2rem] p-5 md:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center shadow-sm">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold text-xs flex-shrink-0">?</div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-gray-900 truncate">{req.userEmail}</p>
+                          <p className="text-[10px] uppercase tracking-widest text-amber-600">Libro: {req.bookTitle}</p>
+                          {req.whatsapp && <p className="text-[9px] text-green-600 font-bold">📞 {req.whatsapp}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 w-full md:w-auto">
+                        <button onClick={() => authorizeUser(req.bookId, req.userEmail, req.id)} className="flex-1 md:flex-none min-h-[44px] px-6 py-3 bg-green-600 text-white rounded-full text-[9px] font-bold uppercase hover:bg-green-700 shadow-lg">Aceptar</button>
+                        <button onClick={() => rejectRequest(req.id)} className="min-h-[44px] min-w-[44px] px-4 py-3 bg-white text-red-400 border border-gray-200 rounded-full text-[9px] font-bold uppercase hover:bg-red-50">✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: PUSH */}
+          {activeTab === "push" && (
+            <div className="bg-gradient-to-br from-indigo-900 to-blue-900 rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl text-white max-w-xl">
+              <h2 className="text-lg md:text-xl font-bold mb-6 flex items-center gap-3">
+                <span className="w-8 h-8 bg-white text-indigo-900 rounded-full flex items-center justify-center text-[10px]">04</span>
+                Enviar Notificación
+              </h2>
+              <div className="space-y-5">
+                <input className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-white/20 outline-none" placeholder="Título" value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} />
+                <textarea className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none h-32 resize-none" placeholder="Mensaje" value={notifBody} onChange={(e) => setNotifBody(e.target.value)} />
+                <button onClick={sendPushNotification} disabled={loading} className="w-full min-h-[44px] py-4 bg-white text-indigo-900 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all shadow-lg flex items-center justify-center gap-2">
+                  {loading ? "..." : <><span>🚀</span> Enviar a Todos</>}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
+
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-6 right-4 z-30 min-w-[44px] min-h-[44px] px-4 py-3 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-amber-600 transition-colors"
+          aria-label="Volver arriba"
+        >
+          ↑ Arriba
+        </button>
+      )}
     </main>
   );
 }

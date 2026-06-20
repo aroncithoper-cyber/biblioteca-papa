@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// Copia de respaldo de las reglas activas en Firebase Console (proyecto consejerodelobrero-31110).
+// Probadas: /ensenanzas, /biblioteca, lectura de documents para usuarios logueados,
+// escritura admin-only en documents, videos, gallery y ensenanzas.
+// No modificar aquí sin publicar el mismo cambio en la consola.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && userEmail() in [
+          'aroncithoper@gmail.com',
+          'e_perezleon@hotmail.com'
+        ];
+    }
+
+    match /ensenanzas/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /documents/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /videos/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /gallery/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /requests/{docId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userEmail == userEmail());
+      allow create: if isSignedIn()
+        && request.resource.data.userEmail == userEmail()
+        && request.resource.data.keys().hasAll(['bookId', 'userEmail', 'status']);
+      allow update, delete: if isAdmin();
+    }
+
+    match /user_favorites/{docId} {
+      allow read: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /fcm_tokens/{tokenId} {
+      allow read: if isAdmin();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+  }
+}

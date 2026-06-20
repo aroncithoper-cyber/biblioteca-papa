@@ -7,10 +7,12 @@ import InstallGuideModal from "@/components/InstallGuideModal";
 import { getMessaging, getToken } from "firebase/messaging";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { usePlayer } from "@/lib/PlayerContext";
 
 export default function LandingPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showGuide, setShowGuide] = useState(false);
+  const { currentVideo } = usePlayer();
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -63,12 +65,16 @@ export default function LandingPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200">
+    <main className={`min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200 ${currentVideo ? "pb-80 md:pb-0" : ""}`}>
       <Header />
       
       <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
-      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
+      <div
+        className={`fixed left-0 right-0 z-[100] flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none transition-all duration-300 ${
+          currentVideo ? "bottom-[17.5rem] md:bottom-6" : "bottom-6"
+        }`}
+      >
         
         {installPrompt && (
           <button 

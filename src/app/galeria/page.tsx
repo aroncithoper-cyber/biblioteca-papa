@@ -37,8 +37,13 @@ export default function GaleriaPage() {
             className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-500"
             onClick={() => setSelectedPhoto(null)}
         >
-            <button className="absolute top-6 right-6 text-white/50 hover:text-white p-2 transition-colors z-50">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+            <button
+              type="button"
+              onClick={() => setSelectedPhoto(null)}
+              aria-label="Cerrar"
+              className="absolute top-4 right-4 sm:top-6 sm:right-6 min-w-[48px] min-h-[48px] w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors z-50"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
@@ -110,8 +115,8 @@ export default function GaleriaPage() {
                     {/* SOMBRA INTERNA (Vignette) */}
                     <div className="absolute inset-0 ring-1 ring-inset ring-black/10 rounded-2xl z-20 pointer-events-none"></div>
                     
-                    {/* CAPA DE DATOS */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
+                    {/* CAPA DE DATOS — hover en desktop */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 hidden md:flex flex-col justify-end p-6">
                         {photo.description && (
                             <>
                                 <div className="h-0.5 w-8 bg-amber-400 mb-2"></div>
@@ -122,6 +127,12 @@ export default function GaleriaPage() {
                         )}
                     </div>
                 </div>
+                {/* Descripción visible en móvil */}
+                {photo.description && (
+                  <p className="md:hidden mt-3 px-1 text-xs text-gray-600 leading-relaxed font-medium line-clamp-3">
+                    {photo.description}
+                  </p>
+                )}
               </div>
             ))}
           </div>

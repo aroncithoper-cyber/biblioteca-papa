@@ -5,8 +5,10 @@ import Header from "@/components/Header";
 import Link from "next/link";
 // Importamos el modal para que funcione el botón de ayuda
 import InstallGuideModal from "@/components/InstallGuideModal";
+import { usePlayer } from "@/lib/PlayerContext";
 
 export default function BiografiaPage() {
+  const { currentVideo } = usePlayer();
   // Estados para los botones flotantes
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -40,14 +42,18 @@ export default function BiografiaPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200 pb-20">
+    <main className={`min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200 pb-20 ${currentVideo ? "md:pb-20 pb-80" : ""}`}>
       <Header />
       
       {/* Modal de Ayuda */}
       <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
       {/* --- BARRA FLOTANTE (BOTONES PRO) --- */}
-      <div className="fixed bottom-6 z-[100] left-0 right-0 flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none">
+      <div
+        className={`fixed left-0 right-0 z-[100] flex justify-center items-center gap-3 px-4 animate-in slide-in-from-bottom-4 fade-in duration-1000 pointer-events-none transition-all duration-300 ${
+          currentVideo ? "bottom-[17.5rem] md:bottom-6" : "bottom-6"
+        }`}
+      >
         
         {installPrompt && (
           <button 

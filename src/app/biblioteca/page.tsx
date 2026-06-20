@@ -241,7 +241,7 @@ export default function BibliotecaPage() {
       )}
 
       {/* --- HERO SECTION --- */}
-      <section className="max-w-6xl mx-auto px-6 pt-20 sm:pt-32 pb-8 sm:pb-10 text-center animate-in">
+      <section className="max-w-6xl mx-auto px-6 pt-16 sm:pt-24 md:pt-32 pb-6 sm:pb-10 text-center animate-in">
         <h1 className="text-4xl sm:text-5xl md:text-8xl font-bold text-gray-900 mb-6 tracking-tighter leading-none">
           Sala de Estudio
         </h1>
@@ -260,7 +260,7 @@ export default function BibliotecaPage() {
       </section>
 
       {/* --- BUSCADOR Y FILTROS --- */}
-      <section className="max-w-6xl mx-auto px-6 pb-8 sticky top-4 z-40 space-y-4">
+      <section className="max-w-6xl mx-auto px-6 pb-4 md:pb-8 md:sticky md:top-4 z-40 space-y-3 md:space-y-4">
         {/* Input Buscador */}
         <div className="relative max-w-xl mx-auto">
           <div className="relative backdrop-blur-xl bg-white/80 p-1.5 rounded-full border border-white shadow-xl ring-1 ring-black/5">
@@ -316,7 +316,7 @@ export default function BibliotecaPage() {
                         </h3>
                         <div className="h-px flex-1 bg-amber-100"></div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-16 gap-x-12">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-8 sm:gap-y-12 lg:gap-y-16 gap-x-8 lg:gap-x-12">
                         {filteredPrivate.map((d, i) => (
                             <BookCard 
                                 key={d.id} doc={d} index={i} 
@@ -339,7 +339,7 @@ export default function BibliotecaPage() {
                         </h3>
                         <div className="h-px flex-1 bg-gray-200"></div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-16 gap-x-12">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-8 sm:gap-y-12 lg:gap-y-16 gap-x-8 lg:gap-x-12">
                         {filteredPublic.map((d, i) => (
                             <BookCard 
                                 key={d.id} doc={d} index={i} hasAccess={true} alreadyRequested={false}
@@ -361,7 +361,7 @@ export default function BibliotecaPage() {
         )}
       </section>
 
-      <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-24 text-center">
+      <footer className="bg-white/40 backdrop-blur-sm border-t border-amber-100 py-12 md:py-24 text-center">
         <img src="/icon-512.png" className="w-12 h-12 mx-auto mb-6 grayscale opacity-20" alt="" />
         <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Jose Enrique Perez Leon</p>
       </footer>

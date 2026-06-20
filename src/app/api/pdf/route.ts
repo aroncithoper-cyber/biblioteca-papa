@@ -1,9 +1,42 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { getDownloadURL, ref } from "firebase/storage";
 import { storage } from "@/lib/firebase";
+import { adminAuth } from "@/lib/firebaseAdmin";
+
+async function verifyAuthenticatedRequest(request: Request) {
+  const authHeader = request.headers.get("Authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const idToken = authHeader.slice(7).trim();
+  if (!idToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!adminAuth) {
+    return NextResponse.json(
+      { error: "Firebase Admin not initialized" },
+      { status: 500 }
+    );
+  }
+
+  try {
+    await adminAuth.verifyIdToken(idToken);
+    return null;
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
 
 export async function GET(req: Request) {
   try {
+    const authError = await verifyAuthenticatedRequest(req);
+    if (authError) return authError;
+
     const { searchParams } = new URL(req.url);
     const path = searchParams.get("path");
 
@@ -11,15 +44,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "missing path" }, { status: 400 });
     }
 
-    // Normaliza: quita "/" inicial si viene como "/pdfs/..."
     const cleanPath = path.replace(/^\/+/, "");
 
-    // URL firmada de Firebase Storage (server-side)
     const url = await getDownloadURL(ref(storage, cleanPath));
 
-    // Trae el PDF desde el server (evita CORS del navegador)
     const res = await fetch(url, {
-      // importante para evitar caché raro en despliegues
       cache: "no-store",
       redirect: "follow",
     });
@@ -37,11 +66,8 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        // Para que el navegador lo trate como documento (no descarga forzada)
         "Content-Disposition": 'inline; filename="documento.pdf"',
-        // Evita caché
         "Cache-Control": "no-store, max-age=0",
-        // Esto ayuda a que varios visores/pdfjs no fallen en algunos casos
         "Accept-Ranges": "bytes",
       },
     });

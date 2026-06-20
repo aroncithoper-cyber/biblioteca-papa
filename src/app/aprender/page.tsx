@@ -76,8 +76,8 @@ export default function AprenderPage() {
 
         setVideos(videosData);
 
-        // Si no hay nada sonando, ponemos el primero
-        if (videosData.length > 0 && !currentVideo) {
+        const isMobile = window.matchMedia("(max-width: 767px)").matches;
+        if (videosData.length > 0 && !currentVideo && !isMobile) {
           playVideo(videosData[0]);
         }
       } catch (error) { console.error(error); } 
@@ -201,9 +201,14 @@ export default function AprenderPage() {
                 ></iframe>
               </div>
             ) : (
-              <div className="aspect-video bg-gray-50 rounded-[2rem] border-4 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
-                <span className="text-4xl mb-2">📺</span>
-                <p className="text-xs font-bold uppercase tracking-widest">Selecciona un video</p>
+              <div className="aspect-video bg-gray-50 rounded-[2rem] border-4 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 px-6 text-center">
+                <span className="text-4xl mb-3">📺</span>
+                <p className="text-xs sm:text-sm font-bold uppercase tracking-widest text-gray-500">
+                  Selecciona una enseñanza para comenzar
+                </p>
+                <p className="text-[10px] text-gray-400 mt-2 normal-case tracking-normal font-normal">
+                  Elige un video de la lista lateral
+                </p>
               </div>
             )}
 

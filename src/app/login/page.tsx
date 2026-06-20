@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -8,6 +8,7 @@ import {
   updateProfile 
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { isAdminEmail } from "@/lib/adminEmails";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -25,8 +26,12 @@ export default function LoginPage() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // Nuevo: para el ojito
 
-  // LISTA DE ADMINISTRADORES PARA REDIRECCIÓN
-  const ADMIN_EMAILS = ["aroncithoper@gmail.com", "e_perezleon@hotmail.com"];
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("register") === "1") {
+      setIsRegistering(true);
+    }
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,10 +56,9 @@ export default function LoginPage() {
       }
 
       const user = userCredential.user;
-      const userEmail = user.email?.toLowerCase() || "";
 
       // REDIRECCIÓN INTELIGENTE
-      if (ADMIN_EMAILS.includes(userEmail)) {
+      if (isAdminEmail(user.email)) {
         router.push("/admin");
       } else {
         router.push("/biblioteca");

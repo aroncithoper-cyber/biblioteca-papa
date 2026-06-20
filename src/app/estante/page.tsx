@@ -103,8 +103,9 @@ export default function EstantePage() {
                       {/* Botón Borrar (Flotante) */}
                       <button 
                         onClick={(e) => {e.preventDefault(); removeFavorite(book.id, 'book');}}
-                        className="absolute top-2 right-2 z-20 w-8 h-8 bg-white/80 backdrop-blur rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors shadow-sm opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 duration-300"
+                        className="absolute top-2 right-2 z-20 min-w-[44px] min-h-[44px] w-11 h-11 bg-white/90 backdrop-blur rounded-full text-gray-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 translate-y-0 md:translate-y-2 md:group-hover:translate-y-0 duration-300"
                         title="Quitar del estante"
+                        aria-label="Quitar del estante"
                       >
                         ✕
                       </button>
@@ -147,8 +148,9 @@ export default function EstantePage() {
                         {/* Botón Borrar */}
                         <button 
                           onClick={(e) => {e.preventDefault(); removeFavorite(vid.id, 'video');}}
-                          className="absolute top-2 right-2 z-20 w-8 h-8 bg-white/80 backdrop-blur rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors shadow-sm opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 duration-300"
+                          className="absolute top-2 right-2 z-20 min-w-[44px] min-h-[44px] w-11 h-11 bg-white/90 backdrop-blur rounded-full text-gray-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 translate-y-0 md:translate-y-2 md:group-hover:translate-y-0 duration-300"
                           title="Quitar del estante"
+                          aria-label="Quitar del estante"
                         >
                           ✕
                         </button>

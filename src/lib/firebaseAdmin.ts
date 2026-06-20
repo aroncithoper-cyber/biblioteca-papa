@@ -2,6 +2,7 @@ import admin from "firebase-admin";
 
 let adminDb: admin.firestore.Firestore | null = null;
 let adminMessaging: admin.messaging.Messaging | null = null;
+let adminAuth: admin.auth.Auth | null = null;
 
 const hasCredentials =
   process.env.FIREBASE_PROJECT_ID &&
@@ -21,6 +22,7 @@ if (!admin.apps.length && hasCredentials) {
 if (admin.apps.length) {
   adminDb = admin.firestore();
   adminMessaging = admin.messaging();
+  adminAuth = admin.auth();
 }
 
-export { adminDb, adminMessaging };
+export { adminDb, adminMessaging, adminAuth };

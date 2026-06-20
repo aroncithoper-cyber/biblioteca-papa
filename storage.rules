@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Copia de respaldo de reglas para Firebase Storage (proyecto consejerodelobrero-31110).
+// Carpetas usadas por la app: pdfs/, covers/, gallery/
+// Subidas solo desde /admin (uploadBytes). Lectura en UI vía download URLs (fileUrl, coverUrl, gallery url).
+//
+// IMPORTANTE — Lectura vs download URLs:
+// - Las URLs de descarga ya generadas (?token=...) siguen abriendo el archivo vía HTTP
+//   aunque las reglas restrinjan read por SDK.
+// - Estas reglas protegen subidas/borrados y lectura vía Firebase SDK.
+// - Seguridad fina de PDFs privados requiere fase posterior: storagePath + /api/pdf + token + authorizedEmails.
+//
+// Publicar en Firebase Console → Storage → Rules (mismo contenido).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && userEmail() in [
+          'aroncithoper@gmail.com',
+          'e_perezleon@hotmail.com'
+        ];
+    }
+
+    // PDFs de libros (admin sube; visor usa fileUrl directo con token embebido)
+    match /pdfs/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Portadas de libros
+    match /covers/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Fotos de galería
+    match /gallery/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

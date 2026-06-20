@@ -47,7 +47,10 @@ export default function GlobalPlayer() {
   if (!isMounted || !currentVideo || pathname === "/aprender") return null;
 
   return (
-    <div className="fixed z-[100] bottom-4 right-4 w-[90%] md:w-80 rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black transition-all duration-500 animate-in slide-in-from-bottom-5">
+    <div
+      className="fixed z-[90] bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm md:left-auto md:translate-x-0 md:right-4 md:w-80 rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black transition-all duration-500 animate-in slide-in-from-bottom-5"
+      data-global-player
+    >
       
       <audio ref={dummyAudioRef} loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" />
 
@@ -61,9 +64,11 @@ export default function GlobalPlayer() {
             {currentVideo.title}
           </span>
         </div>
-        <button 
-          onClick={closeVideo} 
-          className="p-2 bg-gray-800 rounded-full hover:bg-red-900/50 text-gray-400 hover:text-white transition-colors"
+        <button
+          type="button"
+          onClick={closeVideo}
+          aria-label="Cerrar reproductor"
+          className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-gray-800 rounded-full hover:bg-red-900/50 text-gray-400 hover:text-white transition-colors flex-shrink-0"
         >
           ✕
         </button>
