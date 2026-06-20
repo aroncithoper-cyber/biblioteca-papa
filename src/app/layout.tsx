@@ -4,6 +4,7 @@ import { Metadata, Viewport } from "next";
 import { PlayerProvider } from "@/lib/PlayerContext";
 import GlobalPlayer from "@/components/GlobalPlayer";
 import NotificationManager from "@/components/NotificationManager";
+import PwaUpdateBanner from "@/components/PwaUpdateBanner";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://consejerodelobrero.org"), // 👈 IMPORTANTE (cambia si tu dominio es otro)
@@ -84,6 +85,8 @@ export default function RootLayout({
             <GlobalPlayer />
           </AuthGuard>
         </PlayerProvider>
+
+        <PwaUpdateBanner />
 
         {/* 📴 Registro del Service Worker (Modo Offline) */}
         <script

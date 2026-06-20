@@ -13,8 +13,26 @@ import {
   sortEnsenanzas,
   hasTelegramShareUrl,
   AVISO_INSTITUCIONAL,
-  AVISO_COMPARTIR,
 } from "@/lib/ensenanzas";
+
+const TELEGRAM_BENEFITS = [
+  {
+    icon: "📱",
+    text: "Sigue escuchando con la pantalla bloqueada",
+  },
+  {
+    icon: "🚶",
+    text: "Ideal para el trayecto o camino",
+  },
+  {
+    icon: "🎧",
+    text: "Escucha mientras realizas tus actividades",
+  },
+  {
+    icon: "📤",
+    text: "Comparte el audio con otros hermanos para edificación",
+  },
+] as const;
 
 const CATEGORY_ICONS: Record<string, string> = {
   Doctrina: "📖",
@@ -105,6 +123,45 @@ export default function EnsenanzasPage() {
         </p>
       </section>
 
+      {/* Beneficios de Telegram */}
+      <section className="max-w-3xl mx-auto px-6 pb-6">
+        <div className="card-enter rounded-2xl sm:rounded-3xl border border-amber-100/80 bg-white/75 p-5 sm:p-7 shadow-sm backdrop-blur-md ring-1 ring-amber-50/80">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-50 text-lg ring-1 ring-amber-100">
+              🎧
+            </span>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight leading-snug">
+                Escucha la Palabra en tu camino
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                Los audios se abren en Telegram para que puedas escucharlos con mayor comodidad: mientras viajas, trabajas, caminas o realizas tus actividades diarias. Puedes bloquear tu celular y continuar escuchando sin interrumpir la enseñanza.
+              </p>
+            </div>
+          </div>
+
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+            {TELEGRAM_BENEFITS.map((item) => (
+              <li
+                key={item.text}
+                className="flex items-start gap-2.5 rounded-xl border border-amber-50/80 bg-[#fcfaf7]/80 px-3 py-2.5 sm:px-4 sm:py-3"
+              >
+                <span className="text-base flex-shrink-0 leading-none mt-0.5" aria-hidden>
+                  {item.icon}
+                </span>
+                <span className="text-xs sm:text-sm text-gray-700 leading-snug font-medium">
+                  {item.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-4 border-t border-amber-100/80 pt-4 text-xs text-amber-900/70 leading-relaxed">
+            Comparte estos audios con respeto, sin alterar el contenido y procurando que sean de edificación espiritual.
+          </p>
+        </div>
+      </section>
+
       {/* Buscador y categorías */}
       <section className="max-w-6xl mx-auto px-6 pb-4 md:pb-8 md:sticky md:top-4 z-40 space-y-3 md:space-y-4">
         <div className="relative max-w-xl mx-auto">
@@ -143,13 +200,6 @@ export default function EnsenanzasPage() {
             </div>
           </div>
         )}
-      </section>
-
-      {/* Aviso para compartir */}
-      <section className="max-w-3xl mx-auto px-6 pb-8">
-        <div className="bg-white/70 backdrop-blur-sm border border-amber-100 rounded-2xl p-5 sm:p-6 shadow-sm">
-          <p className="text-sm text-gray-600 leading-relaxed">{AVISO_COMPARTIR}</p>
-        </div>
       </section>
 
       {/* Grid */}

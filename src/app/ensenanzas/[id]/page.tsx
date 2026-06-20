@@ -200,6 +200,17 @@ export default function EnsenanzaDetailPage() {
               )}
             </div>
 
+            {audioReady && (
+              <div className="card-enter mb-4 rounded-xl border border-amber-100/80 bg-white/70 px-4 py-3.5 shadow-sm backdrop-blur-sm ring-1 ring-amber-50/80">
+                <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
+                  Puedes escuchar este audio en Telegram con la pantalla bloqueada, durante tu camino o mientras realizas tus actividades.
+                </p>
+                <p className="mt-2 text-[11px] sm:text-xs text-amber-900/65 leading-relaxed">
+                  Compártelo con respeto para edificación espiritual.
+                </p>
+              </div>
+            )}
+
             <div className="bg-white/80 border border-amber-100 rounded-2xl p-5 sm:p-6 mb-10">
               <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
                 {AVISO_USO_RECOMENDADO}
