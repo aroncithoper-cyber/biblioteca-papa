@@ -22,6 +22,7 @@ import Header from "@/components/Header";
 import AdminTabs, { type AdminTabId } from "@/components/admin/AdminTabs";
 import { isAdminEmail } from "@/lib/adminEmails";
 import { getPushTemplate, PUSH_TEMPLATES } from "@/lib/pushTemplates";
+import { pickSuggestedPushMessage } from "@/lib/pushMessageBank";
 import {
   type BookRequest,
   type ApprovedNotifyFilter,
@@ -499,6 +500,13 @@ export default function AdminPage() {
       setNotifTitle(template.title);
       setNotifBody(template.body);
     }
+  };
+
+  const applySuggestedPushMessage = () => {
+    const suggestion = pickSuggestedPushMessage(pushTemplateId);
+    if (!suggestion) return;
+    setNotifTitle(suggestion.title);
+    setNotifBody(suggestion.body);
   };
 
   const sendPushNotification = async () => {
@@ -1237,6 +1245,13 @@ export default function AdminPage() {
                     ))}
                   </select>
                 </div>
+                <button
+                  type="button"
+                  onClick={applySuggestedPushMessage}
+                  className="w-full min-h-[44px] py-3.5 bg-white/15 text-white border border-white/25 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-white/25 transition-all flex items-center justify-center gap-2"
+                >
+                  <span aria-hidden>🎲</span> Usar mensaje sugerido
+                </button>
                 <input
                   className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-white/20 outline-none focus:border-white/40"
                   placeholder="Título"
