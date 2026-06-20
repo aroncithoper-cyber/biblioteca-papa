@@ -14,7 +14,7 @@ import {
   arrayUnion,
   arrayRemove,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
@@ -44,6 +44,20 @@ import {
   requestMatchesSearch,
   type BookRequestStatus,
 } from "@/lib/bookRequests";
+
+type GalleryItem = {
+  id: string;
+  url?: string;
+  thumbUrl?: string;
+  description?: string;
+  createdAt?: unknown;
+  imageStoragePath?: string;
+  thumbStoragePath?: string;
+  imageSizeBytes?: number;
+  thumbSizeBytes?: number;
+  originalSizeBytes?: number;
+  optimized?: boolean;
+};
 
 // Helper para YouTube
 const getYouTubeID = (url: string) => {
@@ -91,6 +105,10 @@ export default function AdminPage() {
   } | null>(null);
   const [galleryOptimizing, setGalleryOptimizing] = useState(false);
   const [galleryDesc, setGalleryDesc] = useState("");
+  const [galleryPhotos, setGalleryPhotos] = useState<GalleryItem[]>([]);
+  const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
+  const [editingGalleryDesc, setEditingGalleryDesc] = useState("");
+  const [copiedGalleryId, setCopiedGalleryId] = useState<string | null>(null);
   
   // VIDEOS
   const [vidTitle, setVidTitle] = useState("");
@@ -180,6 +198,15 @@ export default function AdminPage() {
       const qEns = query(collection(db, "ensenanzas"), orderBy("createdAt", "desc"));
       const snapEns = await getDocs(qEns);
       setEnsenanzas(snapEns.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+
+      const qGallery = query(collection(db, "gallery"), orderBy("createdAt", "desc"));
+      const snapGallery = await getDocs(qGallery);
+      setGalleryPhotos(
+        snapGallery.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<GalleryItem, "id">),
+        }))
+      );
     } catch (e: any) { console.error("Error:", e); }
   };
 
@@ -539,6 +566,76 @@ export default function AdminPage() {
       (document.getElementById("galleryInput") as HTMLInputElement).value = "";
     } finally {
       setGalleryOptimizing(false);
+    }
+  };
+
+  const startEditGalleryDescription = (item: GalleryItem) => {
+    setEditingGalleryId(item.id);
+    setEditingGalleryDesc(item.description || "");
+  };
+
+  const cancelEditGalleryDescription = () => {
+    setEditingGalleryId(null);
+    setEditingGalleryDesc("");
+  };
+
+  const saveGalleryDescription = async (id: string) => {
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "gallery", id), {
+        description: editingGalleryDesc.trim(),
+      });
+      showAdminNotice("Descripción actualizada.");
+      cancelEditGalleryDescription();
+      loadData();
+    } catch {
+      showAdminNotice("No se pudo actualizar la descripción.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteGalleryPhoto = async (item: GalleryItem) => {
+    if (!confirm("¿Eliminar esta foto de la galería?")) return;
+
+    setLoading(true);
+    try {
+      if (item.imageStoragePath) {
+        try {
+          await deleteObject(ref(storage, item.imageStoragePath));
+        } catch (err) {
+          console.warn("No se pudo borrar imagen principal de Storage:", err);
+        }
+      }
+      if (item.thumbStoragePath) {
+        try {
+          await deleteObject(ref(storage, item.thumbStoragePath));
+        } catch (err) {
+          console.warn("No se pudo borrar miniatura de Storage:", err);
+        }
+      } else if (!item.imageStoragePath) {
+        console.warn("Foto antigua sin rutas de Storage; se elimina solo el documento Firestore.");
+      }
+
+      await deleteDoc(doc(db, "gallery", item.id));
+      if (editingGalleryId === item.id) cancelEditGalleryDescription();
+      showAdminNotice("Foto eliminada.");
+      loadData();
+    } catch {
+      showAdminNotice("No se pudo eliminar la foto.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyGalleryLink = async (item: GalleryItem) => {
+    if (!item.url) return;
+    try {
+      await navigator.clipboard.writeText(item.url);
+      setCopiedGalleryId(item.id);
+      setTimeout(() => setCopiedGalleryId(null), 2500);
+    } catch {
+      showAdminNotice("No se pudo copiar el enlace.", "error");
     }
   };
 
@@ -1180,7 +1277,8 @@ export default function AdminPage() {
 
           {/* TAB: GALERÍA */}
           {activeTab === "galeria" && (
-            <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl border border-amber-50 max-w-xl">
+            <div className="space-y-8 md:space-y-10">
+              <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl border border-amber-50 max-w-xl">
               <h2 className="text-lg md:text-xl font-bold mb-6 flex items-center gap-3 text-amber-700">
                 <span className="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center text-[10px]">02</span>
                 Galería
@@ -1221,6 +1319,145 @@ export default function AdminPage() {
                 <button onClick={uploadToGallery} disabled={loading || galleryOptimizing || !galleryMainFile} className="w-full min-h-[44px] py-4 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all disabled:opacity-50">
                   {loading ? "..." : "Añadir a Galería"}
                 </button>
+              </div>
+              </div>
+
+              <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 shadow-2xl border border-amber-50">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-gray-400 mb-6 flex items-center gap-4">
+                  Fotos existentes ({galleryPhotos.length}) <span className="h-px flex-1 bg-amber-100"></span>
+                </h3>
+
+                {galleryPhotos.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-12">
+                    Aún no hay fotos en la galería.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 min-w-0">
+                    {galleryPhotos.map((photo) => {
+                      const isOptimized = Boolean(photo.optimized && photo.thumbUrl);
+                      const createdLabel = formatRequestTimestamp(photo.createdAt);
+                      const isEditing = editingGalleryId === photo.id;
+
+                      return (
+                        <div
+                          key={photo.id}
+                          className="rounded-2xl border border-amber-100 bg-[#fcfaf7] overflow-hidden shadow-sm flex flex-col min-w-0"
+                        >
+                          <div className="aspect-[4/3] bg-gray-200 overflow-hidden">
+                            {(photo.thumbUrl || photo.url) ? (
+                              <img
+                                src={photo.thumbUrl || photo.url}
+                                alt={photo.description || "Foto de galería"}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                                Sin imagen
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-4 flex flex-col gap-3 min-w-0">
+                            <div className="flex flex-wrap gap-2">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                                  isOptimized
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-200 text-gray-600"
+                                }`}
+                              >
+                                {isOptimized ? "Optimizada" : "Sin thumbnail / antigua"}
+                              </span>
+                              {createdLabel && (
+                                <span className="text-[8px] text-gray-400 uppercase tracking-wider">
+                                  {createdLabel}
+                                </span>
+                              )}
+                            </div>
+
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  value={editingGalleryDesc}
+                                  onChange={(e) => setEditingGalleryDesc(e.target.value)}
+                                  rows={3}
+                                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-amber-300 resize-none min-w-0"
+                                  placeholder="Descripción..."
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => saveGalleryDescription(photo.id)}
+                                    disabled={loading}
+                                    className="flex-1 min-h-[40px] px-3 py-2 bg-amber-600 text-white rounded-full text-[9px] font-bold uppercase"
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditGalleryDescription}
+                                    className="min-h-[40px] px-3 py-2 bg-white border border-gray-200 text-gray-500 rounded-full text-[9px] font-bold uppercase"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-700 leading-relaxed line-clamp-3 min-w-0">
+                                {photo.description?.trim() || "Sin descripción"}
+                              </p>
+                            )}
+
+                            {(photo.originalSizeBytes || photo.imageSizeBytes || photo.thumbSizeBytes) && (
+                              <div className="text-[8px] text-gray-500 space-y-0.5 leading-snug">
+                                {photo.originalSizeBytes != null && (
+                                  <p>Original: {formatFileSize(photo.originalSizeBytes)}</p>
+                                )}
+                                {photo.imageSizeBytes != null && (
+                                  <p>Optimizada: {formatFileSize(photo.imageSizeBytes)}</p>
+                                )}
+                                {photo.thumbSizeBytes != null && (
+                                  <p>Miniatura: {formatFileSize(photo.thumbSizeBytes)}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {!isEditing && (
+                              <div className="flex flex-col gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditGalleryDescription(photo)}
+                                  className="min-h-[40px] w-full px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-[9px] font-bold uppercase hover:bg-gray-50"
+                                >
+                                  Editar descripción
+                                </button>
+                                <div className="flex flex-wrap gap-2">
+                                  {photo.url && (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyGalleryLink(photo)}
+                                      className="flex-1 min-h-[40px] px-3 py-2 bg-white border border-gray-200 text-gray-600 rounded-full text-[9px] font-bold uppercase hover:bg-gray-50"
+                                    >
+                                      {copiedGalleryId === photo.id ? "✓ Copiado" : "Copiar link"}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteGalleryPhoto(photo)}
+                                    disabled={loading}
+                                    className="flex-1 min-h-[40px] px-3 py-2 bg-red-50 border border-red-100 text-red-600 rounded-full text-[9px] font-bold uppercase hover:bg-red-100"
+                                  >
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
