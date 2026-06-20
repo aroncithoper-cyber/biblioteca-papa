@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
 import InstallGuideModal from "@/components/InstallGuideModal";
+import { hasPendingRequestForBook, isPendingRequestStatus } from "@/lib/bookRequests";
 
 type DocItem = {
   id: string;
@@ -103,11 +104,9 @@ export default function BibliotecaPage() {
         ]).then(([reqSnap, favSnap]) => {
             setRequestedBookIds(
               reqSnap.docs
-                .filter((d) => {
-                  const status = (d.data().status || "pendiente").toLowerCase();
-                  return status === "pendiente";
-                })
+                .filter((d) => isPendingRequestStatus(d.data().status))
                 .map((d) => d.data().bookId)
+                .filter(Boolean)
             );
             setSavedBookIds(favSnap.docs.map((d) => d.data().contentId));
         }).catch(e => console.error("Error cargando datos de usuario", e));
@@ -331,6 +330,11 @@ export default function BibliotecaPage() {
                                 alreadyRequested={requestedBookIds.includes(d.id)}
                                 userEmail={userEmail} isSaved={savedBookIds.includes(d.id)}
                                 onToggleFavorite={() => toggleFavorite(d)}
+                                onRequestSubmitted={(bookId: string) =>
+                                  setRequestedBookIds((prev) =>
+                                    prev.includes(bookId) ? prev : [...prev, bookId]
+                                  )
+                                }
                             />
                         ))}
                     </div>
@@ -379,17 +383,47 @@ export default function BibliotecaPage() {
 }
 
 // --- SUBCOMPONENTE DE TARJETA (OPTIMIZADO) ---
-function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved, onToggleFavorite }: any) {
+function BookCard({
+  doc,
+  index,
+  hasAccess,
+  alreadyRequested,
+  userEmail,
+  isSaved,
+  onToggleFavorite,
+  onRequestSubmitted,
+}: any) {
   const [showModal, setShowModal] = useState(false);
   const [userName, setUserName] = useState("");
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
   const [localRequested, setLocalRequested] = useState(alreadyRequested);
+  const [duplicateNotice, setDuplicateNotice] = useState(false);
+
+  useEffect(() => {
+    setLocalRequested(alreadyRequested);
+  }, [alreadyRequested]);
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userEmail) return;
+
     setSending(true);
+    setDuplicateNotice(false);
     try {
+      const reqSnap = await getDocs(
+        query(collection(db, "requests"), where("userEmail", "==", userEmail))
+      );
+      const userRequests = reqSnap.docs.map((d) => d.data() as { bookId?: string; status?: string });
+
+      if (hasPendingRequestForBook(userRequests, doc.id)) {
+        setLocalRequested(true);
+        onRequestSubmitted?.(doc.id);
+        setShowModal(false);
+        setDuplicateNotice(true);
+        return;
+      }
+
       await addDoc(collection(db, "requests"), {
         bookTitle: doc.title,
         bookId: doc.id,
@@ -399,11 +433,14 @@ function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved,
         status: "pendiente",
         createdAt: serverTimestamp(),
       });
-      alert("✅ ¡Solicitud Enviada! Espera la activación.");
       setLocalRequested(true);
+      onRequestSubmitted?.(doc.id);
       setShowModal(false);
-    } catch { alert("Error al enviar."); } 
-    finally { setSending(false); }
+    } catch {
+      alert("Error al enviar.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -454,13 +491,30 @@ function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved,
                     Leer Ahora
                 </Link>
             ) : localRequested ? (
-                <div className="w-full py-2 bg-amber-50 border border-amber-200 rounded-lg text-[9px] font-bold text-amber-700 uppercase tracking-widest">
-                    ⏳ Pendiente
+                <div className="w-full py-2 px-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-[9px] font-bold text-amber-800 uppercase tracking-widest leading-snug">
+                    Ya lo solicitaste
+                  </p>
+                  <p className="text-[8px] text-amber-600 mt-0.5 leading-snug">
+                    Espera la activación
+                  </p>
                 </div>
             ) : (
-                <button onClick={() => setShowModal(true)} className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold uppercase tracking-widest rounded-full hover:border-amber-400 hover:text-amber-600 transition-colors">
+                <button
+                  onClick={() => {
+                    setDuplicateNotice(false);
+                    setShowModal(true);
+                  }}
+                  className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold uppercase tracking-widest rounded-full hover:border-amber-400 hover:text-amber-600 transition-colors"
+                >
                     Solicitar
                 </button>
+            )}
+
+            {duplicateNotice && (
+              <p className="text-[8px] text-amber-700 leading-snug px-1">
+                Ya tienes una solicitud pendiente para este libro.
+              </p>
             )}
         </div>
 
@@ -468,7 +522,10 @@ function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved,
         {showModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                 <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
-                    <h3 className="text-center font-bold text-gray-900 mb-6">Solicitar Acceso</h3>
+                    <h3 className="text-center font-bold text-gray-900 mb-2">Solicitar Acceso</h3>
+                    <p className="text-center text-[11px] text-gray-500 mb-6 leading-relaxed">
+                      Solo se permite una solicitud pendiente por libro.
+                    </p>
                     <form onSubmit={handleRequest} className="space-y-4">
                         <input
                           type="text"

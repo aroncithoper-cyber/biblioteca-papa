@@ -28,6 +28,20 @@ export function getRequestStatus(req: BookRequest): BookRequestStatus {
   return "pendiente";
 }
 
+export function isPendingRequestStatus(status?: string): boolean {
+  const normalized = (status || "pendiente").toLowerCase();
+  return normalized === "pendiente";
+}
+
+export function hasPendingRequestForBook(
+  requests: Array<{ bookId?: string; status?: string }>,
+  bookId: string
+): boolean {
+  return requests.some(
+    (r) => r.bookId === bookId && isPendingRequestStatus(r.status)
+  );
+}
+
 export type ApprovedNotifyFilter = "todas" | "no_avisadas" | "avisadas";
 
 export function isRequestNotified(req: BookRequest): boolean {
