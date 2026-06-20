@@ -101,7 +101,14 @@ export default function BibliotecaPage() {
             getDocs(query(collection(db, "requests"), where("userEmail", "==", email))),
             getDocs(query(collection(db, "user_favorites"), where("userId", "==", user.uid), where("type", "==", "book")))
         ]).then(([reqSnap, favSnap]) => {
-            setRequestedBookIds(reqSnap.docs.map((d) => d.data().bookId));
+            setRequestedBookIds(
+              reqSnap.docs
+                .filter((d) => {
+                  const status = (d.data().status || "pendiente").toLowerCase();
+                  return status === "pendiente";
+                })
+                .map((d) => d.data().bookId)
+            );
             setSavedBookIds(favSnap.docs.map((d) => d.data().contentId));
         }).catch(e => console.error("Error cargando datos de usuario", e));
 
@@ -374,6 +381,7 @@ export default function BibliotecaPage() {
 // --- SUBCOMPONENTE DE TARJETA (OPTIMIZADO) ---
 function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved, onToggleFavorite }: any) {
   const [showModal, setShowModal] = useState(false);
+  const [userName, setUserName] = useState("");
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
   const [localRequested, setLocalRequested] = useState(alreadyRequested);
@@ -383,7 +391,13 @@ function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved,
     setSending(true);
     try {
       await addDoc(collection(db, "requests"), {
-        bookTitle: doc.title, bookId: doc.id, userEmail: userEmail, whatsapp: phone, status: "pendiente", createdAt: serverTimestamp(),
+        bookTitle: doc.title,
+        bookId: doc.id,
+        userEmail: userEmail,
+        userName: userName.trim() || undefined,
+        whatsapp: phone,
+        status: "pendiente",
+        createdAt: serverTimestamp(),
       });
       alert("✅ ¡Solicitud Enviada! Espera la activación.");
       setLocalRequested(true);
@@ -456,6 +470,13 @@ function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved,
                 <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
                     <h3 className="text-center font-bold text-gray-900 mb-6">Solicitar Acceso</h3>
                     <form onSubmit={handleRequest} className="space-y-4">
+                        <input
+                          type="text"
+                          placeholder="Tu nombre (opcional)"
+                          value={userName}
+                          onChange={(e) => setUserName(e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-black"
+                        />
                         <input required type="tel" placeholder="Tu WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-black" />
                         <button type="submit" disabled={sending} className="w-full py-3 bg-black text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-green-600 transition-colors">
                             {sending ? "Enviando..." : "Enviar"}

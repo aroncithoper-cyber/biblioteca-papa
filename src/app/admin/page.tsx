@@ -21,6 +21,16 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import AdminTabs, { type AdminTabId } from "@/components/admin/AdminTabs";
 import { isAdminEmail } from "@/lib/adminEmails";
+import {
+  type BookRequest,
+  buildAuthorizationMessage,
+  buildWhatsAppUrl,
+  getRequestStatus,
+  getRequestUserName,
+  isRequestNotified,
+  requestMatchesSearch,
+  type BookRequestStatus,
+} from "@/lib/bookRequests";
 
 // Helper para YouTube
 const getYouTubeID = (url: string) => {
@@ -81,6 +91,16 @@ export default function AdminPage() {
 
   const [activeTab, setActiveTab] = useState<AdminTabId>("libros");
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [requestFilter, setRequestFilter] = useState<BookRequestStatus | "todas">("pendiente");
+  const [requestSearch, setRequestSearch] = useState("");
+  const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
+  const [approvalNotice, setApprovalNotice] = useState(false);
+
+  useEffect(() => {
+    if (!approvalNotice) return;
+    const timer = setTimeout(() => setApprovalNotice(false), 5000);
+    return () => clearTimeout(timer);
+  }, [approvalNotice]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 400);
@@ -174,32 +194,30 @@ export default function AdminPage() {
   const authorizeUser = async (docId: string, emailOverride?: string, requestId?: string) => {
     const email = emailOverride || userEmailToAuthorize[docId]?.trim().toLowerCase();
     if (!email) return alert("Error: Correo no válido");
-    
-    let phoneNumber = "";
-    let bookTitle = "el libro solicitado";
-    
-    if (requestId) {
-        const reqData = requests.find(r => r.id === requestId);
-        if (reqData) {
-            phoneNumber = reqData.whatsapp ? reqData.whatsapp.replace(/\D/g, '') : "";
-            bookTitle = reqData.bookTitle || bookTitle;
-        }
-    }
 
     setLoading(true);
     try {
       await updateDoc(doc(db, "documents", docId), { authorizedEmails: arrayUnion(email) });
-      if (requestId) await deleteDoc(doc(db, "requests", requestId));
 
-      if (phoneNumber) {
-          const message = `¡Paz a vosotros! 🕊️\n\nTu solicitud para acceder al libro *"${bookTitle}"* ha sido APROBADA.\n\nYa puedes entrar a leerlo aquí:\nhttps://consejero-del-obrero.vercel.app/biblioteca\n\n¡Bendiciones!`;
-          window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
+      if (requestId) {
+        await updateDoc(doc(db, "requests", requestId), {
+          status: "aprobada",
+          approvedAt: serverTimestamp(),
+          approvedBy: auth.currentUser?.email || "",
+        });
+        setRequestFilter("aprobada");
+        setApprovalNotice(true);
+      } else {
+        alert(`✅ Acceso concedido a: ${email}`);
       }
-      alert(`✅ Acceso concedido a: ${email}`);
-      if(!emailOverride) setUserEmailToAuthorize({ ...userEmailToAuthorize, [docId]: "" });
+
+      if (!emailOverride) setUserEmailToAuthorize({ ...userEmailToAuthorize, [docId]: "" });
       loadData();
-    } catch (e: any) { alert("Error: " + e.message); } 
-    finally { setLoading(false); }
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const revokeAccess = async (docId: string, email: string) => {
@@ -213,12 +231,66 @@ export default function AdminPage() {
   };
 
   const rejectRequest = async (requestId: string) => {
-      if(!confirm("¿Borrar solicitud?")) return;
-      setLoading(true);
-      try { await deleteDoc(doc(db, "requests", requestId)); loadData(); } 
-      catch(e: any) { alert("Error: " + e.message); }
-      finally { setLoading(false); }
+    if (!confirm("¿Rechazar esta solicitud?")) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "requests", requestId), { status: "rechazada" });
+      loadData();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const copyAuthorizationMessage = async (req: BookRequest) => {
+    const message = buildAuthorizationMessage(
+      req.bookTitle || "el libro solicitado",
+      getRequestUserName(req) || undefined
+    );
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedRequestId(req.id);
+      setTimeout(() => setCopiedRequestId(null), 2500);
+    } catch {
+      alert("No se pudo copiar. Intenta manualmente.");
+    }
+  };
+
+  const openWhatsAppNotice = (req: BookRequest) => {
+    const message = buildAuthorizationMessage(
+      req.bookTitle || "el libro solicitado",
+      getRequestUserName(req) || undefined
+    );
+    const url = buildWhatsAppUrl(req.whatsapp, message);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const markRequestNotified = async (requestId: string) => {
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "requests", requestId), {
+        notifiedAt: serverTimestamp(),
+        notifiedBy: auth.currentUser?.email || "",
+      });
+      loadData();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pendingRequestsCount = requests.filter(
+    (r) => getRequestStatus(r as BookRequest) === "pendiente"
+  ).length;
+
+  const filteredRequests = requests.filter((r) => {
+    const req = r as BookRequest;
+    const status = getRequestStatus(req);
+    if (requestFilter !== "todas" && status !== requestFilter) return false;
+    return requestMatchesSearch(req, requestSearch);
+  });
 
   const uploadDoc = async () => {
     if (!title.trim()) return alert("⚠️ Escribe un título");
@@ -611,7 +683,7 @@ export default function AdminPage() {
             libros: docs.length,
             videos: videos.length,
             ensenanzas: ensenanzas.length,
-            solicitudes: requests.length,
+            solicitudes: pendingRequestsCount,
           }}
         />
 
@@ -841,31 +913,185 @@ export default function AdminPage() {
           {/* TAB: SOLICITUDES */}
           {activeTab === "solicitudes" && (
             <div>
-              <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 mb-6 flex items-center gap-4">
-                Solicitudes pendientes ({requests.length}) <span className="h-px flex-1 bg-amber-100"></span>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 mb-4 flex items-center gap-4">
+                Solicitudes ({filteredRequests.length}) <span className="h-px flex-1 bg-amber-100"></span>
               </h3>
-              {requests.length === 0 ? (
+
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      { id: "pendiente", label: "Pendientes" },
+                      { id: "aprobada", label: "Aprobadas" },
+                      { id: "rechazada", label: "Rechazadas" },
+                      { id: "todas", label: "Todas" },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setRequestFilter(f.id)}
+                      className={`min-h-[36px] rounded-full px-4 py-2 text-[9px] font-bold uppercase tracking-wider transition-colors ${
+                        requestFilter === f.id
+                          ? "bg-amber-600 text-white shadow-sm"
+                          : "bg-white text-gray-500 border border-gray-200 hover:border-amber-200"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="search"
+                  value={requestSearch}
+                  onChange={(e) => setRequestSearch(e.target.value)}
+                  placeholder="Buscar nombre, correo, WhatsApp o libro..."
+                  className="w-full sm:max-w-xs bg-white border border-gray-200 rounded-xl px-4 py-2.5 min-h-[40px] text-xs outline-none focus:border-amber-300"
+                />
+              </div>
+
+              {approvalNotice && (
+                <p
+                  role="status"
+                  className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-xs text-green-800 animate-in fade-in duration-300"
+                >
+                  Solicitud aprobada. Ahora puedes avisar por WhatsApp.
+                </p>
+              )}
+
+              {filteredRequests.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-16 bg-white rounded-[2rem] border border-amber-50">
-                  No hay solicitudes pendientes. Cuando un usuario pida acceso a un libro privado, aparecerá aquí.
+                  {requests.length === 0
+                    ? "No hay solicitudes. Cuando un usuario pida acceso a un libro privado, aparecerá aquí."
+                    : "No hay solicitudes que coincidan con el filtro o búsqueda."}
                 </p>
               ) : (
                 <div className="grid gap-4">
-                  {requests.map((req) => (
-                    <div key={req.id} className="bg-amber-50 border border-amber-100 rounded-[2rem] p-5 md:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center shadow-sm">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold text-xs flex-shrink-0">?</div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-gray-900 truncate">{req.userEmail}</p>
-                          <p className="text-[10px] uppercase tracking-widest text-amber-600">Libro: {req.bookTitle}</p>
-                          {req.whatsapp && <p className="text-[9px] text-green-600 font-bold">📞 {req.whatsapp}</p>}
+                  {filteredRequests.map((req) => {
+                    const item = req as BookRequest;
+                    const status = getRequestStatus(item);
+                    const userName = getRequestUserName(item);
+                    const hasWhatsApp = Boolean(item.whatsapp?.trim());
+                    const showWhatsAppActions = status === "aprobada";
+                    const notified = isRequestNotified(item);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`border rounded-[2rem] p-5 md:p-6 flex flex-col gap-4 shadow-sm ${
+                          status === "aprobada"
+                            ? "bg-green-50/60 border-green-100"
+                            : status === "rechazada"
+                              ? "bg-gray-50 border-gray-200"
+                              : "bg-amber-50 border-amber-100"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
+                          <div className="flex items-start gap-4 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold text-xs flex-shrink-0">
+                              {userName ? userName.charAt(0).toUpperCase() : "?"}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-gray-900 truncate">
+                                {userName || item.userEmail}
+                              </p>
+                              {userName && (
+                                <p className="text-[10px] text-gray-500 truncate">{item.userEmail}</p>
+                              )}
+                              <p className="text-[10px] uppercase tracking-widest text-amber-600 mt-1">
+                                Libro: {item.bookTitle}
+                              </p>
+                              {hasWhatsApp ? (
+                                <p className="text-[9px] text-green-600 font-bold mt-1">📞 {item.whatsapp}</p>
+                              ) : (
+                                <p className="text-[9px] text-gray-400 font-bold mt-1">Sin WhatsApp</p>
+                              )}
+                              <span
+                                className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                                  status === "aprobada"
+                                    ? "bg-green-100 text-green-700"
+                                    : status === "rechazada"
+                                      ? "bg-gray-200 text-gray-600"
+                                      : "bg-amber-100 text-amber-700"
+                                }`}
+                              >
+                                {status}
+                              </span>
+                              {notified && (
+                                <span className="inline-block mt-2 ml-1.5 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-blue-100 text-blue-700">
+                                  Avisado
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {status === "pendiente" && (
+                            <div className="flex gap-2 w-full md:w-auto">
+                              <button
+                                onClick={() => authorizeUser(item.bookId, item.userEmail, item.id)}
+                                className="flex-1 md:flex-none min-h-[44px] px-6 py-3 bg-green-600 text-white rounded-full text-[9px] font-bold uppercase hover:bg-green-700 shadow-lg"
+                              >
+                                Aceptar
+                              </button>
+                              <button
+                                onClick={() => rejectRequest(item.id)}
+                                className="min-h-[44px] min-w-[44px] px-4 py-3 bg-white text-red-400 border border-gray-200 rounded-full text-[9px] font-bold uppercase hover:bg-red-50"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )}
                         </div>
+
+                        {showWhatsAppActions && (
+                          <div className="flex flex-col sm:flex-row flex-wrap gap-2 pt-1 border-t border-green-100/80">
+                            {hasWhatsApp ? (
+                              <button
+                                type="button"
+                                onClick={() => openWhatsAppNotice(item)}
+                                className="flex-1 min-h-[44px] px-4 py-3 bg-[#25D366] text-white rounded-full text-[9px] font-bold uppercase hover:bg-[#1da851] shadow-sm flex items-center justify-center gap-2 sm:min-w-[140px]"
+                              >
+                                📲 Avisar por WhatsApp
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="flex-1 min-h-[44px] px-4 py-3 bg-gray-100 text-gray-400 rounded-full text-[9px] font-bold uppercase cursor-not-allowed sm:min-w-[140px]"
+                              >
+                                Sin WhatsApp
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => copyAuthorizationMessage(item)}
+                              className="min-h-[44px] px-4 py-3 bg-white border border-gray-200 text-gray-600 rounded-full text-[9px] font-bold uppercase hover:bg-gray-50 sm:min-w-[120px]"
+                            >
+                              {copiedRequestId === item.id ? "✓ Copiado" : "Copiar mensaje"}
+                            </button>
+                            {notified ? (
+                              <button
+                                type="button"
+                                disabled
+                                className="min-h-[44px] px-4 py-3 bg-blue-50 border border-blue-100 text-blue-600 rounded-full text-[9px] font-bold uppercase cursor-default sm:min-w-[120px]"
+                              >
+                                ✓ Avisado
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => markRequestNotified(item.id)}
+                                disabled={loading}
+                                className="min-h-[44px] px-4 py-3 bg-white border border-amber-200 text-amber-700 rounded-full text-[9px] font-bold uppercase hover:bg-amber-50 sm:min-w-[120px]"
+                              >
+                                Marcar como avisado
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex gap-2 w-full md:w-auto">
-                        <button onClick={() => authorizeUser(req.bookId, req.userEmail, req.id)} className="flex-1 md:flex-none min-h-[44px] px-6 py-3 bg-green-600 text-white rounded-full text-[9px] font-bold uppercase hover:bg-green-700 shadow-lg">Aceptar</button>
-                        <button onClick={() => rejectRequest(req.id)} className="min-h-[44px] min-w-[44px] px-4 py-3 bg-white text-red-400 border border-gray-200 rounded-full text-[9px] font-bold uppercase hover:bg-red-50">✕</button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
