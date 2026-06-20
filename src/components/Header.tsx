@@ -505,20 +505,6 @@ export default function Header() {
 
                 </button>
 
-
-
-                <MobileNav
-
-                  isOpen={isMobileNavOpen}
-
-                  onClose={() => setIsMobileNavOpen(false)}
-
-                  isAdmin={isAdmin}
-
-                  onLogout={logout}
-
-                />
-
               </>
 
             ) : (
@@ -543,7 +529,14 @@ export default function Header() {
 
       </header>
 
-
+      {user && (
+        <MobileNav
+          isOpen={isMobileNavOpen}
+          onClose={() => setIsMobileNavOpen(false)}
+          isAdmin={isAdmin}
+          onLogout={logout}
+        />
+      )}
 
       {/* --- MODAL DE BÚSQUEDA --- */}
 

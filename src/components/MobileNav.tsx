@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 type NavItem = {
   href: string;
@@ -46,10 +47,10 @@ export default function MobileNav({ isOpen, onClose, isAdmin, onLogout }: Props)
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  return (
-    <div className="fixed inset-0 z-[150] md:hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] md:hidden">
       <button
         type="button"
         aria-label="Cerrar menú"
@@ -58,10 +59,10 @@ export default function MobileNav({ isOpen, onClose, isAdmin, onLogout }: Props)
       />
 
       <nav
-        className="absolute top-0 right-0 h-full w-[min(100%,320px)] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300"
+        className="absolute top-0 right-0 flex h-dvh max-h-dvh w-[min(100%,320px)] min-h-0 flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300"
         aria-label="Menú principal"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-amber-100">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-amber-100 px-5 py-4">
           <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-900">
             Menú
           </span>
@@ -69,24 +70,26 @@ export default function MobileNav({ isOpen, onClose, isAdmin, onLogout }: Props)
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors text-lg font-bold"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-gray-100 text-lg font-bold text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600"
           >
             ✕
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-3 px-3">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               onClick={onClose}
-              className="flex items-center gap-3 min-h-[48px] px-4 py-3 rounded-2xl text-sm font-bold text-gray-800 hover:bg-amber-50 hover:text-amber-900 transition-colors active:bg-amber-100"
+              className="flex min-h-[48px] items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 transition-colors hover:bg-amber-50 hover:text-amber-900 active:bg-amber-100"
             >
-              {item.icon && <span className="text-lg w-7 text-center flex-shrink-0">{item.icon}</span>}
+              {item.icon && (
+                <span className="w-7 flex-shrink-0 text-center text-lg">{item.icon}</span>
+              )}
               <span className="flex-1">{item.label}</span>
               {item.badge && (
-                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                <span className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-700">
                   {item.badge}
                 </span>
               )}
@@ -97,27 +100,28 @@ export default function MobileNav({ isOpen, onClose, isAdmin, onLogout }: Props)
             <Link
               href="/admin"
               onClick={onClose}
-              className="flex items-center gap-3 min-h-[48px] px-4 py-3 mt-1 rounded-2xl text-sm font-bold text-amber-800 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors"
+              className="mt-1 flex min-h-[48px] items-center gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 transition-colors hover:bg-amber-100"
             >
-              <span className="text-lg w-7 text-center flex-shrink-0">⚙️</span>
+              <span className="w-7 flex-shrink-0 text-center text-lg">⚙️</span>
               <span className="flex-1">Panel Admin</span>
             </Link>
           )}
         </div>
 
-        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-amber-100">
+        <div className="flex-shrink-0 border-t border-amber-100 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={() => {
               onClose();
               onLogout();
             }}
-            className="w-full min-h-[48px] flex items-center justify-center gap-2 bg-black text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-amber-700 transition-colors active:scale-[0.98]"
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-black text-xs font-black uppercase tracking-[0.2em] text-white transition-colors hover:bg-amber-700 active:scale-[0.98]"
           >
             Salir
           </button>
         </div>
       </nav>
-    </div>
+    </div>,
+    document.body
   );
 }
