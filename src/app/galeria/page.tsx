@@ -103,7 +103,7 @@ export default function GaleriaPage() {
                 <div className="relative overflow-hidden rounded-2xl bg-gray-200 shadow-xl transition-all duration-700 group-hover:shadow-2xl group-hover:-translate-y-2">
                     
                     <img
-                      src={photo.url}
+                      src={photo.thumbUrl || photo.url}
                       alt={photo.description || "Foto"}
                       className="w-full h-auto object-cover transform transition-all duration-[1500ms] ease-out 
                                  filter grayscale contrast-[1.1] brightness-[0.9] 

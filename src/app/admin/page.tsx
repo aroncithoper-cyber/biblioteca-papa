@@ -24,6 +24,13 @@ import { isAdminEmail } from "@/lib/adminEmails";
 import { getPushTemplate, PUSH_TEMPLATES } from "@/lib/pushTemplates";
 import { pickSuggestedPushMessage } from "@/lib/pushMessageBank";
 import {
+  COVER_UPLOAD_OPTIONS,
+  formatFileSize,
+  optimizeGalleryForUpload,
+  optimizeImageForUpload,
+} from "@/lib/imageOptimize";
+import { getPdfFileMetadata, type PdfWarningLevel } from "@/lib/pdfUpload";
+import {
   type BookRequest,
   type ApprovedNotifyFilter,
   buildAuthorizationMessage,
@@ -60,11 +67,29 @@ export default function AdminPage() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState(""); 
   const [file, setFile] = useState<File | null>(null);
+  const [pdfMeta, setPdfMeta] = useState<{
+    sizeBytes: number;
+    label: string;
+    warningLevel: PdfWarningLevel;
+    warningMessage: string | null;
+  } | null>(null);
   const [cover, setCover] = useState<File | null>(null);
+  const [coverStats, setCoverStats] = useState<{
+    originalSizeBytes: number;
+    optimizedSizeBytes: number;
+  } | null>(null);
+  const [coverOptimizing, setCoverOptimizing] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
 
   // Estados Galería y Videos
-  const [galleryFile, setGalleryFile] = useState<File | null>(null);
+  const [galleryMainFile, setGalleryMainFile] = useState<File | null>(null);
+  const [galleryThumbFile, setGalleryThumbFile] = useState<File | null>(null);
+  const [galleryStats, setGalleryStats] = useState<{
+    originalSizeBytes: number;
+    mainSizeBytes: number;
+    thumbSizeBytes: number;
+  } | null>(null);
+  const [galleryOptimizing, setGalleryOptimizing] = useState(false);
   const [galleryDesc, setGalleryDesc] = useState("");
   
   // VIDEOS
@@ -335,11 +360,19 @@ export default function AdminPage() {
     setLoading(true);
     try {
       let coverUrl = "";
+      let coverMetadata: Record<string, unknown> = {};
+
       if (cover) {
         const coverPath = `covers/${Date.now()}_${cover.name}`;
         const coverRef = ref(storage, coverPath);
         await uploadBytes(coverRef, cover);
         coverUrl = await getDownloadURL(coverRef);
+        coverMetadata = {
+          coverStoragePath: coverPath,
+          coverSizeBytes: cover.size,
+          coverOriginalSizeBytes: coverStats?.originalSizeBytes ?? cover.size,
+          coverOptimized: true,
+        };
       }
 
       const pdfPath = `pdfs/${Date.now()}_${file.name}`;
@@ -356,10 +389,14 @@ export default function AdminPage() {
         category: category.trim() || "General",
         authorizedEmails: [],
         createdAt: serverTimestamp(),
+        fileSizeBytes: file.size,
+        fileSizeLabel: pdfMeta?.label ?? formatFileSize(file.size),
+        pdfWarningLevel: pdfMeta?.warningLevel ?? "ok",
+        ...coverMetadata,
       });
 
       alert("🎉 ¡Libro publicado!");
-      setTitle(""); setCategory(""); setFile(null); setCover(null); setIsPublic(false);
+      setTitle(""); setCategory(""); setFile(null); setPdfMeta(null); setCover(null); setCoverStats(null); setIsPublic(false);
       (document.getElementById("pdfInput") as HTMLInputElement).value = "";
       (document.getElementById("coverInput") as HTMLInputElement).value = "";
       loadData();
@@ -367,21 +404,142 @@ export default function AdminPage() {
     finally { setLoading(false); }
   };
 
+  const handlePdfSelect = (selected: File | null) => {
+    if (!selected) {
+      setFile(null);
+      setPdfMeta(null);
+      return;
+    }
+
+    const isPdf =
+      selected.type === "application/pdf" ||
+      selected.name.toLowerCase().endsWith(".pdf");
+
+    if (!isPdf) {
+      showAdminNotice("Selecciona un archivo PDF válido.", "error");
+      setFile(null);
+      setPdfMeta(null);
+      (document.getElementById("pdfInput") as HTMLInputElement).value = "";
+      return;
+    }
+
+    setFile(selected);
+    setPdfMeta(getPdfFileMetadata(selected));
+  };
+
+  const handleCoverSelect = async (selected: File | null) => {
+    if (!selected) {
+      setCover(null);
+      setCoverStats(null);
+      return;
+    }
+
+    if (!selected.type.startsWith("image/")) {
+      showAdminNotice("Selecciona un archivo de imagen válido.", "error");
+      setCover(null);
+      setCoverStats(null);
+      (document.getElementById("coverInput") as HTMLInputElement).value = "";
+      return;
+    }
+
+    setCoverOptimizing(true);
+    try {
+      const result = await optimizeImageForUpload(selected, COVER_UPLOAD_OPTIONS);
+      setCover(result.file);
+      setCoverStats({
+        originalSizeBytes: selected.size,
+        optimizedSizeBytes: result.file.size,
+      });
+    } catch {
+      showAdminNotice("No se pudo optimizar la portada. Intenta con JPG o PNG.", "error");
+      setCover(null);
+      setCoverStats(null);
+      (document.getElementById("coverInput") as HTMLInputElement).value = "";
+    } finally {
+      setCoverOptimizing(false);
+    }
+  };
+
   const uploadToGallery = async () => {
-    if (!galleryFile) return alert("⚠️ Selecciona una foto");
+    if (!galleryMainFile || !galleryThumbFile) return alert("⚠️ Selecciona una foto");
     setLoading(true);
     try {
-      const path = `gallery/${Date.now()}_${galleryFile.name}`;
-      const imgRef = ref(storage, path);
-      await uploadBytes(imgRef, galleryFile);
-      const url = await getDownloadURL(imgRef);
-      await addDoc(collection(db, "gallery"), { url, description: galleryDesc, createdAt: serverTimestamp() });
+      const stamp = Date.now();
+      const imagePath = `gallery/${stamp}_${galleryMainFile.name}`;
+      const thumbPath = `gallery/thumbs/${stamp}_${galleryThumbFile.name}`;
+
+      const imageRef = ref(storage, imagePath);
+      const thumbRef = ref(storage, thumbPath);
+
+      await uploadBytes(imageRef, galleryMainFile);
+      await uploadBytes(thumbRef, galleryThumbFile);
+
+      const url = await getDownloadURL(imageRef);
+      const thumbUrl = await getDownloadURL(thumbRef);
+
+      await addDoc(collection(db, "gallery"), {
+        url,
+        thumbUrl,
+        description: galleryDesc,
+        createdAt: serverTimestamp(),
+        imageStoragePath: imagePath,
+        thumbStoragePath: thumbPath,
+        imageSizeBytes: galleryMainFile.size,
+        thumbSizeBytes: galleryThumbFile.size,
+        originalSizeBytes: galleryStats?.originalSizeBytes ?? galleryMainFile.size,
+        optimized: true,
+      });
+
       alert("📸 Foto añadida");
-      setGalleryFile(null); setGalleryDesc("");
+      setGalleryMainFile(null);
+      setGalleryThumbFile(null);
+      setGalleryStats(null);
+      setGalleryDesc("");
       (document.getElementById("galleryInput") as HTMLInputElement).value = "";
       loadData();
-    } catch (e: any) { alert("Error: " + e.message); } 
-    finally { setLoading(false); }
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGallerySelect = async (selected: File | null) => {
+    if (!selected) {
+      setGalleryMainFile(null);
+      setGalleryThumbFile(null);
+      setGalleryStats(null);
+      return;
+    }
+
+    if (!selected.type.startsWith("image/")) {
+      showAdminNotice("Selecciona un archivo de imagen válido.", "error");
+      setGalleryMainFile(null);
+      setGalleryThumbFile(null);
+      setGalleryStats(null);
+      (document.getElementById("galleryInput") as HTMLInputElement).value = "";
+      return;
+    }
+
+    setGalleryOptimizing(true);
+    try {
+      const optimized = await optimizeGalleryForUpload(selected);
+      setGalleryMainFile(optimized.main);
+      setGalleryThumbFile(optimized.thumb);
+      setGalleryStats({
+        originalSizeBytes: optimized.originalSizeBytes,
+        mainSizeBytes: optimized.mainSizeBytes,
+        thumbSizeBytes: optimized.thumbSizeBytes,
+      });
+    } catch {
+      showAdminNotice("No se pudo optimizar la foto. Intenta con JPG o PNG.", "error");
+      setGalleryMainFile(null);
+      setGalleryThumbFile(null);
+      setGalleryStats(null);
+      (document.getElementById("galleryInput") as HTMLInputElement).value = "";
+    } finally {
+      setGalleryOptimizing(false);
+    }
   };
 
   const uploadVideo = async () => {
@@ -768,15 +926,77 @@ export default function AdminPage() {
                   <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Título del Libro..." value={title} onChange={(e) => setTitle(e.target.value)} />
                   <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Categoría (Ej: Ampliación de Lecciones)..." value={category} onChange={(e) => setCategory(e.target.value)} />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className={`relative min-h-[96px] bg-[#fcfaf7] border-2 border-dashed ${file ? "border-green-500 bg-green-50" : "border-amber-100"} rounded-2xl flex flex-col items-center justify-center`}>
-                      <input id="pdfInput" type="file" accept="application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                      <span className={`text-[9px] font-bold uppercase ${file ? "text-green-700" : "text-amber-600"}`}>{file ? "PDF Listo" : "Subir PDF"}</span>
+                    <div
+                      className={`relative min-h-[96px] bg-[#fcfaf7] border-2 border-dashed rounded-2xl flex flex-col items-center justify-center px-3 py-3 text-center ${
+                        !file
+                          ? "border-amber-100"
+                          : pdfMeta?.warningLevel === "strong"
+                            ? "border-orange-400 bg-orange-50/60"
+                            : pdfMeta?.warningLevel === "warning"
+                              ? "border-amber-400 bg-amber-50/60"
+                              : "border-green-500 bg-green-50"
+                      }`}
+                    >
+                      <input
+                        id="pdfInput"
+                        type="file"
+                        accept="application/pdf"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={(e) => handlePdfSelect(e.target.files?.[0] || null)}
+                      />
+                      {file && pdfMeta ? (
+                        <>
+                          <span className="text-[9px] font-bold uppercase text-green-700">PDF listo</span>
+                          <span className="text-[8px] text-gray-600 mt-1">Peso: {pdfMeta.label}</span>
+                        </>
+                      ) : (
+                        <span className="text-[9px] font-bold uppercase text-amber-600">Subir PDF</span>
+                      )}
                     </div>
-                    <div className={`relative min-h-[96px] bg-[#fcfaf7] border-2 border-dashed ${cover ? "border-green-500 bg-green-50" : "border-amber-100"} rounded-2xl flex flex-col items-center justify-center`}>
-                      <input id="coverInput" type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setCover(e.target.files?.[0] || null)} />
-                      <span className={`text-[9px] font-bold uppercase ${cover ? "text-green-700" : "text-amber-600"}`}>{cover ? "Portada Lista" : "Subir Portada"}</span>
+                    <div className={`relative min-h-[96px] bg-[#fcfaf7] border-2 border-dashed ${cover ? "border-green-500 bg-green-50" : coverOptimizing ? "border-amber-300 bg-amber-50/50" : "border-amber-100"} rounded-2xl flex flex-col items-center justify-center px-3 py-3 text-center`}>
+                      <input
+                        id="coverInput"
+                        type="file"
+                        accept="image/*"
+                        disabled={coverOptimizing}
+                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait"
+                        onChange={(e) => handleCoverSelect(e.target.files?.[0] || null)}
+                      />
+                      {coverOptimizing ? (
+                        <>
+                          <span className="text-[9px] font-bold uppercase text-amber-600">Optimizando...</span>
+                          <span className="text-[8px] text-amber-500 mt-1">Reduciendo peso de la portada</span>
+                        </>
+                      ) : cover && coverStats ? (
+                        <>
+                          <span className="text-[9px] font-bold uppercase text-green-700">Portada lista</span>
+                          <span className="text-[8px] text-green-600 mt-1 leading-snug">
+                            Original: {formatFileSize(coverStats.originalSizeBytes)}
+                          </span>
+                          <span className="text-[8px] text-green-700 font-bold leading-snug">
+                            Optimizada: {formatFileSize(coverStats.optimizedSizeBytes)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[9px] font-bold uppercase text-amber-600">Subir Portada</span>
+                      )}
                     </div>
                   </div>
+                  {pdfMeta?.warningMessage && (
+                    <p
+                      role="status"
+                      className={`rounded-xl border px-4 py-3 text-xs leading-relaxed ${
+                        pdfMeta.warningLevel === "strong"
+                          ? "border-orange-200 bg-orange-50 text-orange-900"
+                          : "border-amber-200 bg-amber-50 text-amber-900"
+                      }`}
+                    >
+                      {pdfMeta.warningMessage}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
+                    Recomendación: comprime PDFs grandes antes de subirlos. Idealmente intenta mantenerlos por debajo de 20 MB cuando sea posible.
+                  </p>
                   <label className="flex items-center gap-3 cursor-pointer py-2 min-h-[44px]">
                     <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="accent-black w-5 h-5" />
                     <span className="text-[10px] font-bold uppercase text-gray-400">Hacer Público</span>
@@ -966,12 +1186,39 @@ export default function AdminPage() {
                 Galería
               </h2>
               <div className="space-y-4">
-                <div className="relative min-h-[144px] bg-amber-50/30 border-2 border-dashed border-amber-100 rounded-[2rem] flex flex-col items-center justify-center">
-                  <input id="galleryInput" type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setGalleryFile(e.target.files?.[0] || null)} />
-                  <span className="text-[10px] font-bold uppercase text-amber-600 px-4 text-center">{galleryFile ? galleryFile.name : "Subir Foto"}</span>
+                <div className={`relative min-h-[144px] bg-amber-50/30 border-2 border-dashed ${galleryMainFile ? "border-green-400 bg-green-50/40" : galleryOptimizing ? "border-amber-300" : "border-amber-100"} rounded-[2rem] flex flex-col items-center justify-center px-4 py-4 text-center`}>
+                  <input
+                    id="galleryInput"
+                    type="file"
+                    accept="image/*"
+                    disabled={galleryOptimizing}
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait"
+                    onChange={(e) => handleGallerySelect(e.target.files?.[0] || null)}
+                  />
+                  {galleryOptimizing ? (
+                    <>
+                      <span className="text-[10px] font-bold uppercase text-amber-600">Optimizando...</span>
+                      <span className="text-[8px] text-amber-500 mt-1">Creando imagen principal y miniatura</span>
+                    </>
+                  ) : galleryMainFile && galleryStats ? (
+                    <>
+                      <span className="text-[10px] font-bold uppercase text-green-700">Foto lista</span>
+                      <span className="text-[8px] text-green-600 mt-1">
+                        Original: {formatFileSize(galleryStats.originalSizeBytes)}
+                      </span>
+                      <span className="text-[8px] text-green-700 font-bold">
+                        Optimizada: {formatFileSize(galleryStats.mainSizeBytes)}
+                      </span>
+                      <span className="text-[8px] text-green-600">
+                        Miniatura: {formatFileSize(galleryStats.thumbSizeBytes)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] font-bold uppercase text-amber-600 px-4">Subir Foto</span>
+                  )}
                 </div>
                 <input className="w-full bg-[#fcfaf7] rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-gray-100 outline-none" placeholder="Descripción..." value={galleryDesc} onChange={(e) => setGalleryDesc(e.target.value)} />
-                <button onClick={uploadToGallery} disabled={loading} className="w-full min-h-[44px] py-4 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all">
+                <button onClick={uploadToGallery} disabled={loading || galleryOptimizing || !galleryMainFile} className="w-full min-h-[44px] py-4 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-black transition-all disabled:opacity-50">
                   {loading ? "..." : "Añadir a Galería"}
                 </button>
               </div>

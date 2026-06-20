@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // Copia de respaldo de reglas para Firebase Storage (proyecto consejerodelobrero-31110).
-// Carpetas usadas por la app: pdfs/, covers/, gallery/
+// Carpetas usadas por la app: pdfs/, covers/, gallery/ (incl. gallery/thumbs/)
 // Subidas solo desde /admin (uploadBytes). Lectura en UI vía download URLs (fileUrl, coverUrl, gallery url).
 //
 // IMPORTANTE — Lectura vs download URLs:
@@ -44,8 +44,8 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
-    // Fotos de galería
-    match /gallery/{fileName} {
+    // Fotos de galería (principal + miniaturas en gallery/thumbs/)
+    match /gallery/{allPaths=**} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
