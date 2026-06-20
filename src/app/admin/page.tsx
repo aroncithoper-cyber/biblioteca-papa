@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import AdminTabs, { type AdminTabId } from "@/components/admin/AdminTabs";
 import { isAdminEmail } from "@/lib/adminEmails";
+import { getPushTemplate, PUSH_TEMPLATES } from "@/lib/pushTemplates";
 import {
   type BookRequest,
   type ApprovedNotifyFilter,
@@ -87,6 +88,7 @@ export default function AdminPage() {
   // Estados Notificaciones
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
+  const [pushTemplateId, setPushTemplateId] = useState("");
 
   // ESTADOS DE EDICIÓN
   const [editingDoc, setEditingDoc] = useState<any>(null); // Para editar libros
@@ -489,6 +491,16 @@ export default function AdminPage() {
     }
   };
 
+  const applyPushTemplate = (templateId: string) => {
+    setPushTemplateId(templateId);
+    if (!templateId) return;
+    const template = getPushTemplate(templateId);
+    if (template) {
+      setNotifTitle(template.title);
+      setNotifBody(template.body);
+    }
+  };
+
   const sendPushNotification = async () => {
     if (!notifTitle.trim() || !notifBody.trim()) return alert("⚠️ Escribe título y mensaje.");
     if (!confirm(`¿Enviar a TODOS?\n\n"${notifTitle}"`)) return;
@@ -512,7 +524,9 @@ export default function AdminPage() {
       const data = await res.json();
       if (res.ok) {
         alert(`✅ Enviado con éxito.\nDispositivos: ${data.sentCount || 0}`);
-        setNotifTitle(""); setNotifBody("");
+        setNotifTitle("");
+        setNotifBody("");
+        setPushTemplateId("");
       } else if (res.status === 401) {
         alert("Sesión inválida o expirada. Vuelve a iniciar sesión.");
       } else if (res.status === 403) {
@@ -1200,8 +1214,44 @@ export default function AdminPage() {
                 Enviar Notificación
               </h2>
               <div className="space-y-5">
-                <input className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-white/20 outline-none" placeholder="Título" value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} />
-                <textarea className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none h-32 resize-none" placeholder="Mensaje" value={notifBody} onChange={(e) => setNotifBody(e.target.value)} />
+                <div>
+                  <label
+                    htmlFor="push-template"
+                    className="block text-[10px] font-bold uppercase tracking-widest text-blue-200 mb-2"
+                  >
+                    Plantilla
+                  </label>
+                  <select
+                    id="push-template"
+                    value={pushTemplateId}
+                    onChange={(e) => applyPushTemplate(e.target.value)}
+                    className="w-full bg-white/10 text-white rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-white/20 outline-none focus:border-white/40"
+                  >
+                    <option value="" className="text-gray-900">
+                      Escribir manualmente
+                    </option>
+                    {PUSH_TEMPLATES.map((t) => (
+                      <option key={t.id} value={t.id} className="text-gray-900">
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 min-h-[44px] text-sm border border-white/20 outline-none focus:border-white/40"
+                  placeholder="Título"
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                />
+                <textarea
+                  className="w-full bg-white/10 text-white placeholder-blue-300 rounded-2xl px-5 py-4 text-sm border border-white/20 outline-none h-32 resize-none focus:border-white/40"
+                  placeholder="Mensaje"
+                  value={notifBody}
+                  onChange={(e) => setNotifBody(e.target.value)}
+                />
+                <p className="text-[10px] text-blue-200/80 leading-relaxed">
+                  Puedes editar el título y el mensaje antes de enviar.
+                </p>
                 <button onClick={sendPushNotification} disabled={loading} className="w-full min-h-[44px] py-4 bg-white text-indigo-900 rounded-full font-bold text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all shadow-lg flex items-center justify-center gap-2">
                   {loading ? "..." : <><span>🚀</span> Enviar a Todos</>}
                 </button>
