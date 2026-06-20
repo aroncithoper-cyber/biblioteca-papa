@@ -21,7 +21,7 @@ export default function GaleriaPage() {
 
   return (
     <main
-      className="min-h-screen bg-[#fcfaf7] font-serif select-none relative overflow-x-hidden"
+      className="ambient-page min-h-screen bg-[#fcfaf7] font-serif select-none relative overflow-x-hidden"
       onContextMenu={(e) => e.preventDefault()}
     >
       <Header />
@@ -96,9 +96,8 @@ export default function GaleriaPage() {
               <div
                 key={photo.id}
                 onClick={() => setSelectedPhoto(photo)}
-                className="group relative break-inside-avoid cursor-zoom-in"
-                // Animación de entrada escalonada
-                style={{ animationDelay: `${index * 100}ms` }}
+                className="card-enter group relative break-inside-avoid cursor-zoom-in"
+                style={{ "--stagger": `${Math.min(index, 8) * 50}ms` } as React.CSSProperties}
               >
                 {/* MARCO DE LA FOTO */}
                 <div className="relative overflow-hidden rounded-2xl bg-gray-200 shadow-xl transition-all duration-700 group-hover:shadow-2xl group-hover:-translate-y-2">

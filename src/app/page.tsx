@@ -65,7 +65,7 @@ export default function LandingPage() {
   };
 
   return (
-    <main className={`min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200 ${currentVideo ? "pb-80 md:pb-0" : ""}`}>
+    <main className={`ambient-page min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200 ${currentVideo ? "pb-80 md:pb-0" : ""}`}>
       <Header />
       
       <InstallGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
@@ -79,7 +79,7 @@ export default function LandingPage() {
         {installPrompt && (
           <button 
             onClick={handleInstallClick} 
-            className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-2xl border-2 border-white hover:bg-black transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+            className="btn-premium flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-2xl border-2 border-white hover:bg-black pointer-events-auto active:scale-[0.98]"
           >
             <span className="text-base">📲</span>
             <span>Instalar App</span>
@@ -88,7 +88,7 @@ export default function LandingPage() {
 
         <button 
             onClick={handleEnableNotifications}
-            className="flex items-center gap-2 px-4 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-black hover:text-white transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+            className="btn-premium flex items-center gap-2 px-4 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-black hover:text-white pointer-events-auto active:scale-[0.98]"
         >
             <span className="text-base">🔔</span>
             <span className="hidden sm:inline">Avisos</span>
@@ -96,7 +96,7 @@ export default function LandingPage() {
 
         <button 
           onClick={() => setShowGuide(true)} 
-          className="flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 pointer-events-auto"
+          className="btn-premium flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 pointer-events-auto active:scale-[0.98]"
         >
           <span className="text-base">❓</span>
           <span>¿Cómo instalar?</span>
@@ -129,13 +129,13 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-10">
             <Link
               href="/biblioteca"
-              className="w-full sm:w-auto px-10 py-4 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-[0.25em] hover:bg-amber-600 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1"
+              className="btn-premium w-full sm:w-auto px-10 py-4 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-[0.25em] shadow-xl hover:bg-amber-600 hover:shadow-2xl active:scale-[0.98]"
             >
               Explorar la Obra
             </Link>
             <Link
               href="/galeria"
-              className="w-full sm:w-auto px-10 py-4 bg-white text-gray-900 border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-[0.25em] hover:bg-gray-50 transition-all hover:border-gray-400"
+              className="btn-premium w-full sm:w-auto px-10 py-4 bg-white text-gray-900 border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-[0.25em] hover:bg-gray-50 hover:border-gray-400 active:scale-[0.98]"
             >
               Ver Galería
             </Link>

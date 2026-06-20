@@ -155,7 +155,7 @@ export default function EnsenanzaDetailPage() {
                 <button
                   type="button"
                   onClick={() => openExternalUrl(item.telegram_url!)}
-                  className="w-full min-h-[44px] py-4 px-6 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-2xl text-sm sm:text-base font-bold transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2"
+                  className="btn-telegram w-full min-h-[44px] py-4 px-6 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-2xl text-sm sm:text-base font-bold shadow-lg flex items-center justify-center gap-2 active:scale-[0.98]"
                 >
                   🎧 Escuchar enseñanza en Telegram
                 </button>
@@ -180,7 +180,7 @@ export default function EnsenanzaDetailPage() {
                   <button
                     type="button"
                     onClick={handleShare}
-                    className="w-full min-h-[44px] py-3 px-6 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                    className="btn-share-audio w-full min-h-[44px] py-3 px-6 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
                   >
                     📤 Compartir audio
                   </button>

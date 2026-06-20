@@ -221,7 +221,7 @@ export default function BibliotecaPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
+    <main className="ambient-page min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
 
       {/* --- BANNER INTELIGENTE --- */}
@@ -393,7 +393,10 @@ function BookCard({ doc, index, hasAccess, alreadyRequested, userEmail, isSaved,
   };
 
   return (
-    <div className="group relative flex flex-col items-center animate-in fade-in zoom-in duration-700" style={{ animationDelay: `${index * 50}ms` }}>
+    <div
+      className="card-enter group relative flex flex-col items-center"
+      style={{ "--stagger": `${Math.min(index, 8) * 45}ms` } as React.CSSProperties}
+    >
         {/* CONTENEDOR PORTADA */}
         <div className={`relative w-48 sm:w-56 aspect-[2/3] transition-all duration-500 ${hasAccess ? 'group-hover:-translate-y-4 group-hover:shadow-2xl' : 'opacity-80 grayscale-[0.5]'}`}>
             

@@ -65,7 +65,7 @@ export default function EstantePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200">
+    <main className="ambient-page min-h-screen bg-[#fcfaf7] font-serif selection:bg-amber-200">
       <Header />
 
       <section className="max-w-7xl mx-auto px-6 py-12 sm:py-20">
@@ -97,8 +97,12 @@ export default function EstantePage() {
 
               {favorites.books.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                  {favorites.books.map((book: any) => (
-                    <div key={book.id} className="group relative bg-white p-4 rounded-[2rem] border border-gray-100 hover:border-amber-200 hover:shadow-xl transition-all duration-500">
+                  {favorites.books.map((book: any, index: number) => (
+                    <div
+                      key={book.id}
+                      className="card-enter group relative rounded-[2rem] border border-gray-100 bg-white p-4 transition-all duration-500 hover:border-amber-200 hover:shadow-xl"
+                      style={{ "--stagger": `${Math.min(index, 6) * 45}ms` } as React.CSSProperties}
+                    >
                       
                       {/* Botón Borrar (Flotante) */}
                       <button 
@@ -142,8 +146,12 @@ export default function EstantePage() {
 
               {favorites.videos.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {favorites.videos.map((vid: any) => (
-                     <div key={vid.id} className="group relative bg-white p-4 rounded-[2rem] border border-gray-100 hover:border-red-100 hover:shadow-xl transition-all duration-500">
+                  {favorites.videos.map((vid: any, index: number) => (
+                     <div
+                       key={vid.id}
+                       className="card-enter group relative rounded-[2rem] border border-gray-100 bg-white p-4 transition-all duration-500 hover:border-red-100 hover:shadow-xl"
+                       style={{ "--stagger": `${Math.min(index, 6) * 45}ms` } as React.CSSProperties}
+                     >
                         
                         {/* Botón Borrar */}
                         <button 

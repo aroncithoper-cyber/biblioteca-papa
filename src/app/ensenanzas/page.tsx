@@ -84,7 +84,7 @@ export default function EnsenanzasPage() {
   }, [items, selectedCategory, term]);
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
+    <main className="ambient-page min-h-screen bg-[#fcfaf7] font-serif select-none overflow-x-hidden">
       <Header />
 
       {/* Hero */}
@@ -177,8 +177,8 @@ export default function EnsenanzasPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {filtered.map((item) => (
-              <EnsenanzaCard key={item.id} item={item} />
+            {filtered.map((item, index) => (
+              <EnsenanzaCard key={item.id} item={item} index={index} />
             ))}
           </div>
         )}
@@ -198,7 +198,7 @@ export default function EnsenanzasPage() {
   );
 }
 
-function EnsenanzaCard({ item }: { item: Ensenanza }) {
+function EnsenanzaCard({ item, index }: { item: Ensenanza; index: number }) {
   const audioReady = isAudioAvailable(item);
   const canShareAudio = hasTelegramShareUrl(item);
   const hasYoutube = !!item.youtube_url?.trim();
@@ -215,7 +215,10 @@ function EnsenanzaCard({ item }: { item: Ensenanza }) {
   };
 
   return (
-    <article className="group bg-white rounded-[2rem] border border-amber-50 shadow-lg hover:shadow-xl hover:border-amber-200 transition-all duration-300 overflow-hidden flex flex-col">
+    <article
+      className="card-enter group flex flex-col overflow-hidden rounded-[2rem] border border-amber-50 bg-white shadow-lg transition-all duration-300 hover:border-amber-200 hover:shadow-xl"
+      style={{ "--stagger": `${Math.min(index, 8) * 45}ms` } as React.CSSProperties}
+    >
       <Link href={`/ensenanzas/${item.id}`} className="block p-6 sm:p-7 flex-1">
         <div className="flex items-start justify-between gap-3 mb-4">
           <span className="text-3xl">{getCategoryIcon(item.category)}</span>
@@ -249,7 +252,7 @@ function EnsenanzaCard({ item }: { item: Ensenanza }) {
               e.preventDefault();
               openExternalUrl(item.telegram_url!);
             }}
-            className="w-full py-3 px-4 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-2xl text-xs sm:text-sm font-bold transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2"
+            className="btn-telegram w-full py-3 px-4 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-2xl text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 active:scale-[0.98]"
           >
             <span className="sm:hidden">🎧 Escuchar en Telegram</span>
             <span className="hidden sm:inline">🎧 Escuchar enseñanza en Telegram</span>
@@ -278,7 +281,7 @@ function EnsenanzaCard({ item }: { item: Ensenanza }) {
             <button
               type="button"
               onClick={handleShare}
-              className="w-full min-h-[44px] py-2.5 px-4 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+              className="btn-share-audio w-full min-h-[44px] py-2.5 px-4 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               📤 Compartir audio
             </button>
