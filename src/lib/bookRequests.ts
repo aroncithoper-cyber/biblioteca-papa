@@ -28,8 +28,42 @@ export function getRequestStatus(req: BookRequest): BookRequestStatus {
   return "pendiente";
 }
 
+export type ApprovedNotifyFilter = "todas" | "no_avisadas" | "avisadas";
+
 export function isRequestNotified(req: BookRequest): boolean {
   return Boolean(req.notifiedAt);
+}
+
+/** Formatea timestamp de Firestore para mostrar en tarjetas. */
+export function formatRequestTimestamp(value: unknown): string | null {
+  if (!value) return null;
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toDate" in value &&
+    typeof (value as { toDate: () => Date }).toDate === "function"
+  ) {
+    return (value as { toDate: () => Date })
+      .toDate()
+      .toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+  }
+
+  if (value instanceof Date) {
+    return value.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+  }
+
+  return null;
+}
+
+export function matchesApprovedNotifyFilter(
+  req: BookRequest,
+  filter: ApprovedNotifyFilter
+): boolean {
+  if (filter === "todas") return true;
+  const notified = isRequestNotified(req);
+  if (filter === "avisadas") return notified;
+  return !notified;
 }
 
 /** Limpia el número y aplica prefijo México (52) si no lo trae. */

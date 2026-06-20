@@ -23,11 +23,15 @@ import AdminTabs, { type AdminTabId } from "@/components/admin/AdminTabs";
 import { isAdminEmail } from "@/lib/adminEmails";
 import {
   type BookRequest,
+  type ApprovedNotifyFilter,
   buildAuthorizationMessage,
   buildWhatsAppUrl,
+  formatRequestTimestamp,
   getRequestStatus,
   getRequestUserName,
   isRequestNotified,
+  matchesApprovedNotifyFilter,
+  normalizeWhatsAppNumber,
   requestMatchesSearch,
   type BookRequestStatus,
 } from "@/lib/bookRequests";
@@ -92,15 +96,21 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTabId>("libros");
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [requestFilter, setRequestFilter] = useState<BookRequestStatus | "todas">("pendiente");
+  const [approvedNotifyFilter, setApprovedNotifyFilter] = useState<ApprovedNotifyFilter>("todas");
   const [requestSearch, setRequestSearch] = useState("");
   const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
-  const [approvalNotice, setApprovalNotice] = useState(false);
+  const [copiedWhatsAppId, setCopiedWhatsAppId] = useState<string | null>(null);
+  const [adminNotice, setAdminNotice] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const showAdminNotice = (message: string, type: "success" | "error" = "success") => {
+    setAdminNotice({ message, type });
+  };
 
   useEffect(() => {
-    if (!approvalNotice) return;
-    const timer = setTimeout(() => setApprovalNotice(false), 5000);
+    if (!adminNotice) return;
+    const timer = setTimeout(() => setAdminNotice(null), 5000);
     return () => clearTimeout(timer);
-  }, [approvalNotice]);
+  }, [adminNotice]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 400);
@@ -193,7 +203,10 @@ export default function AdminPage() {
 
   const authorizeUser = async (docId: string, emailOverride?: string, requestId?: string) => {
     const email = emailOverride || userEmailToAuthorize[docId]?.trim().toLowerCase();
-    if (!email) return alert("Error: Correo no válido");
+    if (!email) {
+      showAdminNotice("Correo no válido.", "error");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -206,15 +219,16 @@ export default function AdminPage() {
           approvedBy: auth.currentUser?.email || "",
         });
         setRequestFilter("aprobada");
-        setApprovalNotice(true);
+        setApprovedNotifyFilter("no_avisadas");
+        showAdminNotice("Solicitud aprobada. Ahora puedes avisar por WhatsApp.");
       } else {
-        alert(`✅ Acceso concedido a: ${email}`);
+        showAdminNotice("Acceso autorizado correctamente.");
       }
 
       if (!emailOverride) setUserEmailToAuthorize({ ...userEmailToAuthorize, [docId]: "" });
       loadData();
-    } catch (e: any) {
-      alert("Error: " + e.message);
+    } catch {
+      showAdminNotice("No se pudo autorizar el acceso. Intenta nuevamente.", "error");
     } finally {
       setLoading(false);
     }
@@ -235,9 +249,10 @@ export default function AdminPage() {
     setLoading(true);
     try {
       await updateDoc(doc(db, "requests", requestId), { status: "rechazada" });
+      showAdminNotice("Solicitud rechazada.");
       loadData();
-    } catch (e: any) {
-      alert("Error: " + e.message);
+    } catch {
+      showAdminNotice("No se pudo rechazar la solicitud. Intenta nuevamente.", "error");
     } finally {
       setLoading(false);
     }
@@ -252,8 +267,22 @@ export default function AdminPage() {
       await navigator.clipboard.writeText(message);
       setCopiedRequestId(req.id);
       setTimeout(() => setCopiedRequestId(null), 2500);
+      showAdminNotice("Mensaje copiado al portapapeles.");
     } catch {
-      alert("No se pudo copiar. Intenta manualmente.");
+      showAdminNotice("No se pudo copiar el mensaje.", "error");
+    }
+  };
+
+  const copyWhatsAppNumber = async (req: BookRequest) => {
+    const normalized = normalizeWhatsAppNumber(req.whatsapp);
+    if (!normalized) return;
+    try {
+      await navigator.clipboard.writeText(normalized);
+      setCopiedWhatsAppId(req.id);
+      setTimeout(() => setCopiedWhatsAppId(null), 2500);
+      showAdminNotice("Número de WhatsApp copiado.");
+    } catch {
+      showAdminNotice("No se pudo copiar el número.", "error");
     }
   };
 
@@ -273,9 +302,10 @@ export default function AdminPage() {
         notifiedAt: serverTimestamp(),
         notifiedBy: auth.currentUser?.email || "",
       });
+      showAdminNotice("Marcado como avisado.");
       loadData();
-    } catch (e: any) {
-      alert("Error: " + e.message);
+    } catch {
+      showAdminNotice("No se pudo guardar el aviso. Intenta nuevamente.", "error");
     } finally {
       setLoading(false);
     }
@@ -289,6 +319,9 @@ export default function AdminPage() {
     const req = r as BookRequest;
     const status = getRequestStatus(req);
     if (requestFilter !== "todas" && status !== requestFilter) return false;
+    if (requestFilter === "aprobada" && !matchesApprovedNotifyFilter(req, approvedNotifyFilter)) {
+      return false;
+    }
     return requestMatchesSearch(req, requestSearch);
   });
 
@@ -687,6 +720,19 @@ export default function AdminPage() {
           }}
         />
 
+        {adminNotice && (
+          <p
+            role="status"
+            className={`mt-4 rounded-xl border px-4 py-3 text-xs animate-in fade-in duration-300 ${
+              adminNotice.type === "success"
+                ? "border-green-200 bg-green-50 text-green-800"
+                : "border-red-200 bg-red-50 text-red-800"
+            }`}
+          >
+            {adminNotice.message}
+          </p>
+        )}
+
         <div className="mt-6 md:mt-8 min-w-0">
           {/* TAB: LIBROS */}
           {activeTab === "libros" && (
@@ -917,8 +963,9 @@ export default function AdminPage() {
                 Solicitudes ({filteredRequests.length}) <span className="h-px flex-1 bg-amber-100"></span>
               </h3>
 
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                <div className="overflow-x-auto -mx-1 px-1 min-w-0">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2 min-w-0">
                   {(
                     [
                       { id: "pendiente", label: "Pendientes" },
@@ -930,8 +977,11 @@ export default function AdminPage() {
                     <button
                       key={f.id}
                       type="button"
-                      onClick={() => setRequestFilter(f.id)}
-                      className={`min-h-[36px] rounded-full px-4 py-2 text-[9px] font-bold uppercase tracking-wider transition-colors ${
+                      onClick={() => {
+                        setRequestFilter(f.id);
+                        if (f.id !== "aprobada") setApprovedNotifyFilter("todas");
+                      }}
+                      className={`min-h-[36px] rounded-full px-4 py-2 text-[9px] font-bold uppercase tracking-wider transition-colors flex-shrink-0 ${
                         requestFilter === f.id
                           ? "bg-amber-600 text-white shadow-sm"
                           : "bg-white text-gray-500 border border-gray-200 hover:border-amber-200"
@@ -940,23 +990,42 @@ export default function AdminPage() {
                       {f.label}
                     </button>
                   ))}
+                  </div>
                 </div>
                 <input
                   type="search"
                   value={requestSearch}
                   onChange={(e) => setRequestSearch(e.target.value)}
                   placeholder="Buscar nombre, correo, WhatsApp o libro..."
-                  className="w-full sm:max-w-xs bg-white border border-gray-200 rounded-xl px-4 py-2.5 min-h-[40px] text-xs outline-none focus:border-amber-300"
+                  className="w-full sm:max-w-xs bg-white border border-gray-200 rounded-xl px-4 py-2.5 min-h-[40px] text-xs outline-none focus:border-amber-300 min-w-0"
                 />
               </div>
 
-              {approvalNotice && (
-                <p
-                  role="status"
-                  className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-xs text-green-800 animate-in fade-in duration-300"
-                >
-                  Solicitud aprobada. Ahora puedes avisar por WhatsApp.
-                </p>
+              {requestFilter === "aprobada" && (
+                <div className="mb-4 overflow-x-auto -mx-1 px-1">
+                  <div className="flex gap-2 pb-1">
+                    {(
+                      [
+                        { id: "todas", label: "Todas las aprobadas" },
+                        { id: "no_avisadas", label: "No avisadas" },
+                        { id: "avisadas", label: "Avisadas" },
+                      ] as const
+                    ).map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setApprovedNotifyFilter(f.id)}
+                        className={`min-h-[32px] rounded-full px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider transition-colors flex-shrink-0 ${
+                          approvedNotifyFilter === f.id
+                            ? "bg-green-600 text-white shadow-sm"
+                            : "bg-white text-gray-500 border border-green-100 hover:border-green-200"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {filteredRequests.length === 0 ? (
@@ -974,6 +1043,8 @@ export default function AdminPage() {
                     const hasWhatsApp = Boolean(item.whatsapp?.trim());
                     const showWhatsAppActions = status === "aprobada";
                     const notified = isRequestNotified(item);
+                    const notifiedAtLabel = formatRequestTimestamp(item.notifiedAt);
+                    const normalizedPhone = normalizeWhatsAppNumber(item.whatsapp);
 
                     return (
                       <div
@@ -1002,7 +1073,20 @@ export default function AdminPage() {
                                 Libro: {item.bookTitle}
                               </p>
                               {hasWhatsApp ? (
-                                <p className="text-[9px] text-green-600 font-bold mt-1">📞 {item.whatsapp}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-2 min-w-0">
+                                  <p className="text-[9px] text-green-600 font-bold truncate max-w-full">
+                                    📞 {item.whatsapp}
+                                  </p>
+                                  {normalizedPhone && (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyWhatsAppNumber(item)}
+                                      className="text-[8px] font-bold uppercase tracking-wider text-green-700 underline hover:text-green-900 flex-shrink-0"
+                                    >
+                                      {copiedWhatsAppId === item.id ? "✓ Copiado" : "Copiar WhatsApp"}
+                                    </button>
+                                  )}
+                                </div>
                               ) : (
                                 <p className="text-[9px] text-gray-400 font-bold mt-1">Sin WhatsApp</p>
                               )}
@@ -1019,8 +1103,17 @@ export default function AdminPage() {
                               </span>
                               {notified && (
                                 <span className="inline-block mt-2 ml-1.5 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-blue-100 text-blue-700">
-                                  Avisado
+                                  ✓ Avisado
                                 </span>
+                              )}
+                              {notified && (notifiedAtLabel || item.notifiedBy) && (
+                                <p className="mt-2 text-[9px] text-blue-700/80 leading-snug truncate max-w-full">
+                                  {notifiedAtLabel}
+                                  {notifiedAtLabel && item.notifiedBy ? " · " : ""}
+                                  {item.notifiedBy ? (
+                                    <span className="truncate">{item.notifiedBy}</span>
+                                  ) : null}
+                                </p>
                               )}
                             </div>
                           </div>
@@ -1043,7 +1136,7 @@ export default function AdminPage() {
                           )}
                         </div>
 
-                        {showWhatsAppActions && (
+                        {showWhatsAppActions && !notified && (
                           <div className="flex flex-col sm:flex-row flex-wrap gap-2 pt-1 border-t border-green-100/80">
                             {hasWhatsApp ? (
                               <button
@@ -1069,24 +1162,26 @@ export default function AdminPage() {
                             >
                               {copiedRequestId === item.id ? "✓ Copiado" : "Copiar mensaje"}
                             </button>
-                            {notified ? (
-                              <button
-                                type="button"
-                                disabled
-                                className="min-h-[44px] px-4 py-3 bg-blue-50 border border-blue-100 text-blue-600 rounded-full text-[9px] font-bold uppercase cursor-default sm:min-w-[120px]"
-                              >
-                                ✓ Avisado
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => markRequestNotified(item.id)}
-                                disabled={loading}
-                                className="min-h-[44px] px-4 py-3 bg-white border border-amber-200 text-amber-700 rounded-full text-[9px] font-bold uppercase hover:bg-amber-50 sm:min-w-[120px]"
-                              >
-                                Marcar como avisado
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => markRequestNotified(item.id)}
+                              disabled={loading}
+                              className="min-h-[44px] px-4 py-3 bg-white border border-amber-200 text-amber-700 rounded-full text-[9px] font-bold uppercase hover:bg-amber-50 sm:min-w-[120px]"
+                            >
+                              {hasWhatsApp ? "Marcar como avisado" : "Marcar como avisado manualmente"}
+                            </button>
+                          </div>
+                        )}
+
+                        {showWhatsAppActions && notified && (
+                          <div className="flex flex-wrap gap-2 pt-1 border-t border-green-100/80">
+                            <button
+                              type="button"
+                              onClick={() => copyAuthorizationMessage(item)}
+                              className="min-h-[40px] px-4 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-full text-[9px] font-bold uppercase hover:bg-gray-50"
+                            >
+                              {copiedRequestId === item.id ? "✓ Copiado" : "Copiar mensaje"}
+                            </button>
                           </div>
                         )}
                       </div>
