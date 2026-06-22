@@ -6,11 +6,14 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import FlipbookViewer from "@/components/FlipbookViewer";
-import AndroidPdfFallback from "@/components/AndroidPdfFallback";
-import {
-  isAndroidPwa,
-  isMobileFlipbookLayout,
-} from "@/lib/androidPdfMode";
+
+function isMobileLayout(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(max-width: 767px)").matches ||
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  );
+}
 
 export default function DocumentoPage() {
   const router = useRouter();
@@ -20,17 +23,11 @@ export default function DocumentoPage() {
   const [title, setTitle] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
   const [loading, setLoading] = useState(true);
-
-  const [androidPwa, setAndroidPwa] = useState(false);
-  const [mobileLayout, setMobileLayout] = useState(false);
-  const [tryIntegratedReader, setTryIntegratedReader] = useState(false);
+  const [mobileLayout, setMobileLayout] = useState(isMobileLayout);
 
   useEffect(() => {
-    setAndroidPwa(isAndroidPwa());
-    setMobileLayout(isMobileFlipbookLayout());
+    setMobileLayout(isMobileLayout());
   }, []);
-
-  const useCompatibleMode = androidPwa && !tryIntegratedReader;
 
   useEffect(() => {
     let alive = true;
@@ -69,25 +66,11 @@ export default function DocumentoPage() {
     };
   }, [id, router]);
 
-  if (useCompatibleMode && !loading && pdfUrl) {
-    return (
-      <main className="min-h-[100dvh] bg-[#fcfaf7] font-serif">
-        <Header />
-        <AndroidPdfFallback
-          title={title}
-          fileUrl={pdfUrl}
-          onBack={() => router.push("/biblioteca")}
-          onTryIntegratedReader={() => setTryIntegratedReader(true)}
-        />
-      </main>
-    );
-  }
-
   if (mobileLayout && !loading && pdfUrl) {
     return (
-      <main className="documento-mobile-reader min-h-[100dvh] bg-[#fcfaf7] font-serif">
+      <main className="documento-mobile-reader bg-[#fcfaf7] font-serif">
         <Header />
-        <div className="sticky top-0 z-20 px-3 py-2 border-b border-amber-100 bg-white/95 backdrop-blur-sm flex items-center justify-between gap-2">
+        <div className="shrink-0 px-3 py-2 border-b border-amber-100 bg-white/95 backdrop-blur-sm flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => router.push("/biblioteca")}
@@ -100,7 +83,9 @@ export default function DocumentoPage() {
           </p>
           <span className="w-16 shrink-0" aria-hidden />
         </div>
-        <FlipbookViewer fileUrl={pdfUrl} />
+        <div className="documento-mobile-reader-body">
+          <FlipbookViewer fileUrl={pdfUrl} />
+        </div>
       </main>
     );
   }

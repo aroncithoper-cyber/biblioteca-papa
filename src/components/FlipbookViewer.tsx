@@ -12,13 +12,21 @@ type Props = { fileUrl: string };
 type Theme = "light" | "sepia" | "dark";
 type ViewMode = "flip" | "scroll";
 
-const MOBILE_INITIAL_PAGES = 1;
+const MOBILE_INITIAL_PAGES = 2;
 const MOBILE_BATCH_SIZE = 1;
 const MOBILE_RENDER_DELAY_MS = 180;
+const MOBILE_MIN_ZOOM = 0.85;
+const MOBILE_MAX_ZOOM = 1.75;
+const MOBILE_ZOOM_STEP = 0.1;
 const DESKTOP_BATCH_SIZE = 3;
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
+}
+
+function detectAndroid(): boolean {
+  if (typeof window === "undefined") return false;
+  return /Android/i.test(navigator.userAgent);
 }
 
 function detectMobileReader(): boolean {
@@ -58,6 +66,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   const blobUrlsRef = useRef<string[]>([]);
   const pauseRenderUntilRef = useRef(0);
   const renderLoopRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [pages, setPages] = useState<(string | null)[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,10 +79,12 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   const [resumeMsg, setResumeMsg] = useState("");
 
   const [zoom, setZoom] = useState(1);
+  const [mobileZoom, setMobileZoom] = useState(1);
   const [theme, setTheme] = useState<Theme>("light");
   const [targetPage, setTargetPage] = useState("");
 
   const [isMobileReader, setIsMobileReader] = useState(detectMobileReader);
+  const [isAndroid, setIsAndroid] = useState(detectAndroid);
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
     detectMobileReader() ? "scroll" : "flip"
   );
@@ -119,8 +130,15 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       bookRef.current?.pageFlip()?.turnToPage(p - 1);
       saveProgress(p);
     } else {
+      const container = scrollContainerRef.current;
       const el = document.getElementById(`page-${p - 1}`);
-      if (el) {
+      if (el && container) {
+        container.scrollTo({
+          top: el.offsetTop,
+          behavior: "auto",
+        });
+        saveProgress(p);
+      } else if (el) {
         el.scrollIntoView({ behavior: "auto", block: "start" });
         saveProgress(p);
       }
@@ -130,28 +148,62 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   useEffect(() => {
     const mobile = detectMobileReader();
     setIsMobileReader(mobile);
+    setIsAndroid(detectAndroid());
     if (mobile) {
       setViewMode("scroll");
       setZoom(1);
+      setMobileZoom(1);
     } else {
       setViewMode("flip");
     }
   }, []);
 
+  const adjustMobileWidth = useCallback(() => {
+    setMobileZoom(1);
+    pauseBackgroundRender(2000);
+  }, [pauseBackgroundRender]);
+
+  const zoomMobileIn = useCallback(() => {
+    setMobileZoom((z) =>
+      clamp(+(z + MOBILE_ZOOM_STEP).toFixed(2), MOBILE_MIN_ZOOM, MOBILE_MAX_ZOOM)
+    );
+    pauseBackgroundRender(2500);
+  }, [pauseBackgroundRender]);
+
+  const zoomMobileOut = useCallback(() => {
+    setMobileZoom((z) =>
+      clamp(+(z - MOBILE_ZOOM_STEP).toFixed(2), MOBILE_MIN_ZOOM, MOBILE_MAX_ZOOM)
+    );
+    pauseBackgroundRender(2500);
+  }, [pauseBackgroundRender]);
+
   useEffect(() => {
     if (!isMobileReader) return;
 
-    const pause = () => pauseBackgroundRender(3000);
-    window.addEventListener("touchstart", pause, { passive: true });
-    window.addEventListener("touchmove", pause, { passive: true });
-    window.addEventListener("wheel", pause, { passive: true });
+    const pause = () => pauseBackgroundRender(2000);
+    const container = scrollContainerRef.current;
+
+    container?.addEventListener("touchstart", pause, { passive: true });
+    container?.addEventListener("scroll", pause, { passive: true });
 
     return () => {
-      window.removeEventListener("touchstart", pause);
-      window.removeEventListener("touchmove", pause);
-      window.removeEventListener("wheel", pause);
+      container?.removeEventListener("touchstart", pause);
+      container?.removeEventListener("scroll", pause);
     };
-  }, [isMobileReader, pauseBackgroundRender]);
+  }, [isMobileReader, pauseBackgroundRender, loading, pages.length]);
+
+  useEffect(() => {
+    if (!isMobileReader || loading) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const blockContextMenu = (e: Event) => e.preventDefault();
+    container.addEventListener("contextmenu", blockContextMenu);
+
+    return () => {
+      container.removeEventListener("contextmenu", blockContextMenu);
+    };
+  }, [isMobileReader, loading, pages.length]);
 
   useEffect(() => {
     if (!loading && totalPages > 0) {
@@ -371,8 +423,8 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         },
         {
           threshold: 0.2,
-          root: null,
-          rootMargin: isMobileReader ? "-56px 0px -80px 0px" : "0px",
+          root: isMobileReader ? scrollContainerRef.current : null,
+          rootMargin: "0px",
         }
       );
 
@@ -422,24 +474,32 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       ? "sepia(0.25) contrast(1.05)"
       : "none";
 
-  const renderScrollPages = () =>
+  const renderScrollPages = (useMobileZoom = false) =>
     visiblePages.map((src, idx) => (
       <div
         key={idx}
         id={`page-${idx}`}
-        className={`w-full relative ${themeStyles[theme]} ${idx > 0 ? "mt-1" : ""}`}
+        className={`flipbook-mobile-page w-full relative ${themeStyles[theme]} ${idx > 0 ? "mt-1" : ""}`}
       >
         {src && (
           <img
             src={src}
             alt={`Página ${idx + 1}`}
-            className="w-full h-auto block max-w-full"
+            className="flipbook-mobile-page-img h-auto block"
+            style={
+              useMobileZoom
+                ? {
+                    width: `${mobileZoom * 100}%`,
+                    maxWidth: "none",
+                  }
+                : { width: "100%", maxWidth: "100%" }
+            }
             loading={idx < 2 ? "eager" : "lazy"}
             decoding="async"
             draggable={false}
           />
         )}
-        <div className="py-1 text-center text-[9px] text-gray-400 opacity-60">
+        <div className="flipbook-mobile-page-num py-1 text-center text-[9px] text-gray-400 opacity-60">
           {idx + 1}
         </div>
       </div>
@@ -447,14 +507,14 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
   if (isMobileReader) {
     return (
-      <div className="flipbook-mobile-shell w-full">
+      <div className="flipbook-mobile-shell flex flex-col h-full min-h-0 w-full">
         {resumeMsg && (
           <div className="fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] bg-black/80 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg pointer-events-none">
             {resumeMsg}
           </div>
         )}
 
-        <div className="sticky top-0 z-30 shrink-0 px-2 py-2 border-b border-amber-100/80 bg-white/95 backdrop-blur-sm">
+        <div className="flipbook-mobile-toolbar shrink-0 z-30 px-2 py-2 border-b border-amber-100/80 bg-white/95 backdrop-blur-sm">
           <div className="flex items-center justify-between gap-2 max-w-3xl mx-auto">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-600 truncate">
               Pág. {currentPage}{totalPages > 0 ? ` / ${totalPages}` : ""}
@@ -474,11 +534,45 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               </button>
             </form>
           </div>
-          {backgroundRendering && (
-            <p className="text-center text-[9px] text-amber-600 mt-1">
-              Preparando páginas… {currentRender}/{totalPages}
-            </p>
+
+          {isAndroid && (
+            <div className="flex items-center justify-center gap-2 mt-2 max-w-3xl mx-auto flex-wrap">
+              <button
+                type="button"
+                onClick={adjustMobileWidth}
+                className="min-h-[36px] px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-[9px] font-bold uppercase tracking-wider text-amber-800"
+              >
+                Ajustar ancho
+              </button>
+              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={zoomMobileOut}
+                  aria-label="Alejar"
+                  className="min-w-[40px] min-h-[36px] px-2 text-sm font-bold text-gray-700 bg-white"
+                >
+                  −
+                </button>
+                <span className="px-2 text-[9px] font-bold text-gray-500 min-w-[3rem] text-center">
+                  {Math.round(mobileZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={zoomMobileIn}
+                  aria-label="Acercar"
+                  className="min-w-[40px] min-h-[36px] px-2 text-sm font-bold text-gray-700 bg-white"
+                >
+                  +
+                </button>
+              </div>
+            </div>
           )}
+
+          <p className="text-center text-[9px] text-gray-500 mt-1.5">
+            {backgroundRendering
+              ? `Preparando páginas… ${currentRender}/${totalPages}`
+              : `Páginas cargadas ${visiblePageCount}/${totalPages}`}
+          </p>
         </div>
 
         {loading && (
@@ -498,12 +592,14 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
         {!loading && loadedPagesReady && (
           <div
-            className="flipbook-mobile-pages pb-24"
-            onContextMenu={(e) => e.preventDefault()}
+            ref={scrollContainerRef}
+            className={`flipbook-mobile-scroll flex-1 min-h-0 pb-24 ${
+              mobileZoom > 1.01 ? "flipbook-mobile-scroll--zoomed" : ""
+            }`}
           >
-            {renderScrollPages()}
+            {renderScrollPages(isAndroid)}
             {backgroundRendering && (
-              <div className="py-6 text-center text-[10px] text-gray-400 uppercase tracking-widest">
+              <div className="py-6 text-center text-[10px] text-gray-400 uppercase tracking-widest pointer-events-none">
                 Cargando más páginas…
               </div>
             )}
@@ -514,18 +610,53 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           .flipbook-mobile-shell {
             width: 100%;
             max-width: 100%;
+            height: 100%;
+            min-height: 0;
           }
 
-          .flipbook-mobile-pages {
+          .flipbook-mobile-toolbar {
+            pointer-events: auto;
+            touch-action: manipulation;
+          }
+
+          .flipbook-mobile-scroll {
             width: 100%;
             max-width: 100%;
-            touch-action: pan-y;
-          }
-
-          .documento-mobile-reader {
             overflow-x: hidden;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            overscroll-behavior-y: contain;
+          }
+
+          .flipbook-mobile-scroll--zoomed {
+            overflow-x: auto;
+            touch-action: pan-x pan-y;
+          }
+
+          .flipbook-mobile-page,
+          .flipbook-mobile-page-img,
+          .flipbook-mobile-page-num {
+            pointer-events: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+          }
+
+          .documento-mobile-reader {
+            display: flex;
+            flex-direction: column;
+            height: 100dvh;
+            max-height: 100dvh;
+            overflow: hidden;
+          }
+
+          .documento-mobile-reader-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
           }
         `}</style>
       </div>
@@ -655,7 +786,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               </span>
             )}
           </div>
-          <div className="w-full max-w-full overflow-x-hidden">{renderScrollPages()}</div>
+          <div className="w-full max-w-full overflow-x-hidden">{renderScrollPages(false)}</div>
         </div>
       )}
 
