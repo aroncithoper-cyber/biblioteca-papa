@@ -6,6 +6,11 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import FlipbookViewer from "@/components/FlipbookViewer";
+import AndroidPdfFallback from "@/components/AndroidPdfFallback";
+import {
+  isAndroidPwa,
+  isMobileFlipbookLayout,
+} from "@/lib/androidPdfMode";
 
 export default function DocumentoPage() {
   const router = useRouter();
@@ -15,20 +20,17 @@ export default function DocumentoPage() {
   const [title, setTitle] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
   const [loading, setLoading] = useState(true);
-  const [isMobileReader, setIsMobileReader] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return (
-      window.matchMedia("(max-width: 767px)").matches ||
-      /Android/i.test(navigator.userAgent)
-    );
-  });
+
+  const [androidPwa, setAndroidPwa] = useState(false);
+  const [mobileLayout, setMobileLayout] = useState(false);
+  const [tryIntegratedReader, setTryIntegratedReader] = useState(false);
 
   useEffect(() => {
-    const mobile =
-      window.matchMedia("(max-width: 767px)").matches ||
-      /Android/i.test(navigator.userAgent);
-    setIsMobileReader(mobile);
+    setAndroidPwa(isAndroidPwa());
+    setMobileLayout(isMobileFlipbookLayout());
   }, []);
+
+  const useCompatibleMode = androidPwa && !tryIntegratedReader;
 
   useEffect(() => {
     let alive = true;
@@ -67,7 +69,21 @@ export default function DocumentoPage() {
     };
   }, [id, router]);
 
-  if (isMobileReader && !loading && pdfUrl) {
+  if (useCompatibleMode && !loading && pdfUrl) {
+    return (
+      <main className="min-h-[100dvh] bg-[#fcfaf7] font-serif">
+        <Header />
+        <AndroidPdfFallback
+          title={title}
+          fileUrl={pdfUrl}
+          onBack={() => router.push("/biblioteca")}
+          onTryIntegratedReader={() => setTryIntegratedReader(true)}
+        />
+      </main>
+    );
+  }
+
+  if (mobileLayout && !loading && pdfUrl) {
     return (
       <main className="documento-mobile-reader min-h-[100dvh] bg-[#fcfaf7] font-serif">
         <Header />
