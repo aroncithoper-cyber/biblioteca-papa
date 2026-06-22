@@ -171,9 +171,9 @@ export default function DocumentoPage() {
             </div>
           ) : (
             <div
-              className={`animate-in fade-in slide-in-from-bottom-10 duration-1000 p-1 sm:p-2 md:p-8 rounded-2xl md:rounded-[40px] shadow-2xl border transition-all duration-700 overflow-x-hidden ${
+              className={`animate-in fade-in slide-in-from-bottom-10 duration-1000 p-1 sm:p-2 md:p-8 rounded-2xl md:rounded-[40px] shadow-2xl border transition-all duration-700 overflow-x-hidden overflow-y-visible ${
                 isNightMode
-                  ? "bg-gray-900 border-gray-800 shadow-black/50 filter brightness-[0.85] contrast-125 sepia-[0.3]"
+                  ? "bg-gray-900 border-gray-800 shadow-black/50 md:brightness-[0.85] md:contrast-125 md:sepia-[0.3]"
                   : "bg-white/40 shadow-amber-900/5 border-white/60"
               }`}
             >
