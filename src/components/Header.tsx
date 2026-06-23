@@ -16,6 +16,7 @@ import { collection, getDocs, query } from "firebase/firestore";
 
 import MobileNav from "@/components/MobileNav";
 import { isAdminEmail } from "@/lib/adminEmails";
+import { LanguageSelector, useLanguage } from "@/lib/language";
 
 
 
@@ -28,6 +29,7 @@ const iconBtnClass =
 export default function Header() {
 
   const router = useRouter();
+  const { t } = useLanguage();
 
   const [user, setUser] = useState<User | null>(null);
 
@@ -267,9 +269,9 @@ export default function Header() {
 
               className={`${iconBtnClass} text-gray-400 hover:bg-gray-100 hover:text-amber-600`}
 
-              title="Buscar"
+              title={t.nav.search}
 
-              aria-label="Buscar"
+              aria-label={t.nav.search}
 
             >
 
@@ -313,9 +315,9 @@ export default function Header() {
 
               className={`${iconBtnClass} bg-green-50 text-green-600 border border-green-100 hover:bg-green-600 hover:text-white shadow-sm`}
 
-              title="Ayuda y Soporte"
+              title={t.nav.support}
 
-              aria-label="Ayuda y soporte"
+              aria-label={t.nav.support}
 
             >
 
@@ -324,6 +326,8 @@ export default function Header() {
             </button>
 
 
+
+            <LanguageSelector />
 
             {user ? (
 
@@ -343,7 +347,7 @@ export default function Header() {
 
                     >
 
-                      Panel
+                      {t.nav.panel}
 
                     </Link>
 
@@ -359,7 +363,7 @@ export default function Header() {
 
                   >
 
-                    Libros
+                    {t.nav.books}
 
                   </Link>
 
@@ -373,7 +377,7 @@ export default function Header() {
 
                   >
 
-                    Mi Estante
+                    {t.nav.myShelf}
 
                   </Link>
 
@@ -387,7 +391,7 @@ export default function Header() {
 
                   >
 
-                    Aprender
+                    {t.nav.learn}
 
                   </Link>
 
@@ -401,11 +405,11 @@ export default function Header() {
 
                   >
 
-                    Enseñanzas
+                    {t.nav.teachings}
 
                     <span className="bg-amber-100 text-amber-700 text-[6px] px-1.5 py-0.5 rounded-full border border-amber-200 animate-pulse">
 
-                      NUEVO
+                      {t.nav.new}
 
                     </span>
 
@@ -421,7 +425,7 @@ export default function Header() {
 
                   >
 
-                    Autor
+                    {t.nav.author}
 
                   </Link>
 
@@ -435,7 +439,7 @@ export default function Header() {
 
                   >
 
-                    Galería
+                    {t.nav.gallery}
 
                   </Link>
 
@@ -451,7 +455,7 @@ export default function Header() {
 
                   >
 
-                    Salir
+                    {t.nav.signOut}
 
                   </button>
 
@@ -469,7 +473,7 @@ export default function Header() {
 
                   className={`md:hidden ${iconBtnClass} bg-gray-900 text-white hover:bg-amber-700`}
 
-                  aria-label="Abrir menú"
+                  aria-label={t.nav.openMenu}
 
                   aria-expanded={isMobileNavOpen}
 
@@ -517,7 +521,7 @@ export default function Header() {
 
               >
 
-                Entrar
+                {t.nav.enter}
 
               </Link>
 
@@ -550,7 +554,7 @@ export default function Header() {
 
               <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tighter">
 
-                Buscador
+                {t.search.title}
 
               </h2>
 
@@ -568,7 +572,7 @@ export default function Header() {
 
                 className="min-w-[44px] min-h-[44px] rounded-full bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 transition-colors text-xl font-bold flex items-center justify-center"
 
-                aria-label="Cerrar buscador"
+                aria-label={t.search.close}
 
               >
 
@@ -588,7 +592,7 @@ export default function Header() {
 
                 type="text"
 
-                placeholder="Escribe 'Santidad', 'Doctrina'..."
+                placeholder={t.search.placeholder}
 
                 className="w-full bg-transparent border-b-[3px] border-gray-100 text-xl sm:text-3xl md:text-5xl py-3 sm:py-4 outline-none focus:border-amber-500 transition-colors font-serif placeholder:text-gray-200 text-gray-900"
 
@@ -618,7 +622,7 @@ export default function Header() {
 
                 <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400 mb-6 flex items-center gap-2">
 
-                  Libros Encontrados{" "}
+                  {t.search.booksFound}{" "}
 
                   <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
 
@@ -672,7 +676,7 @@ export default function Header() {
 
                         <p className="text-[9px] uppercase tracking-wider text-gray-400">
 
-                          Ir a lectura
+                          {t.search.goToReading}
 
                         </p>
 
@@ -684,7 +688,7 @@ export default function Header() {
 
                   {searchTerm.length > 2 && searchResults.docs.length === 0 && (
 
-                    <p className="text-sm text-gray-300 italic">No se encontraron libros.</p>
+                    <p className="text-sm text-gray-300 italic">{t.search.noBooks}</p>
 
                   )}
 
@@ -698,7 +702,7 @@ export default function Header() {
 
                 <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400 mb-6 flex items-center gap-2">
 
-                  Videos de Estudio{" "}
+                  {t.search.studyVideos}{" "}
 
                   <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded-full">
 
@@ -762,7 +766,7 @@ export default function Header() {
 
                   {searchTerm.length > 2 && searchResults.videos.length === 0 && (
 
-                    <p className="text-sm text-gray-300 italic">No se encontraron videos.</p>
+                    <p className="text-sm text-gray-300 italic">{t.search.noVideos}</p>
 
                   )}
 
@@ -774,7 +778,7 @@ export default function Header() {
 
                 <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400 mb-6 flex items-center gap-2">
 
-                  Enseñanzas{" "}
+                  {t.nav.teachings}{" "}
 
                   <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
 
@@ -816,7 +820,7 @@ export default function Header() {
 
                         <p className="text-[9px] uppercase tracking-wider text-amber-600 font-bold">
 
-                          Enseñanza{e.category ? ` · ${e.category}` : ""}
+                          {t.search.teachingLabel}{e.category ? ` · ${e.category}` : ""}
 
                         </p>
 
@@ -834,7 +838,7 @@ export default function Header() {
 
                   {searchTerm.length > 2 && searchResults.ensenanzas.length === 0 && (
 
-                    <p className="text-sm text-gray-300 italic">No se encontraron enseñanzas.</p>
+                    <p className="text-sm text-gray-300 italic">{t.search.noTeachings}</p>
 
                   )}
 

@@ -7,12 +7,14 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/language";
 
 export default function EstantePage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<{ books: any[], videos: any[] }>({ books: [], videos: [] });
   const router = useRouter();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -46,7 +48,7 @@ export default function EstantePage() {
   };
 
   const removeFavorite = async (favId: string, type: "book" | "video") => {
-    if(!confirm("¿Quitar de tu estante?")) return;
+    if(!confirm(t.shelf.removeConfirm)) return;
     
     // Optimistic UI (Lo borramos visualmente primero para que se sienta instantáneo)
     if(type === 'book') {
@@ -58,7 +60,7 @@ export default function EstantePage() {
     try {
       await deleteDoc(doc(db, "user_favorites", favId));
     } catch (e) {
-      alert("Hubo un error al borrar.");
+      alert(t.shelf.removeError);
       // Si falla, recargamos (aquí podrías revertir el estado)
       if(user) fetchFavorites(user.uid);
     }
@@ -73,11 +75,11 @@ export default function EstantePage() {
         {/* ENCABEZADO PERSONALIZADO */}
         <div className="mb-16 animate-in slide-in-from-bottom-4 duration-700">
           <h1 className="text-4xl md:text-6xl font-black text-gray-900 tracking-tighter mb-4">
-            Mi Estante
+            {t.shelf.title}
           </h1>
           <p className="text-gray-500 text-lg font-light flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500"></span>
-            Espacio personal de estudio de <span className="font-bold text-gray-800">{user?.email?.split('@')[0]}</span>
+            {t.shelf.personalStudy} <span className="font-bold text-gray-800">{user?.email?.split('@')[0]}</span>
           </p>
         </div>
 
@@ -92,7 +94,7 @@ export default function EstantePage() {
             {/* --- SECCIÓN LIBROS --- */}
             <div>
               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-600 mb-8 flex items-center gap-4">
-                Libros Guardados <span className="h-px flex-1 bg-amber-100"></span>
+                {t.shelf.savedBooks} <span className="h-px flex-1 bg-amber-100"></span>
               </h2>
 
               {favorites.books.length > 0 ? (
@@ -108,8 +110,8 @@ export default function EstantePage() {
                       <button 
                         onClick={(e) => {e.preventDefault(); removeFavorite(book.id, 'book');}}
                         className="absolute top-2 right-2 z-20 min-w-[44px] min-h-[44px] w-11 h-11 bg-white/90 backdrop-blur rounded-full text-gray-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 translate-y-0 md:translate-y-2 md:group-hover:translate-y-0 duration-300"
-                        title="Quitar del estante"
-                        aria-label="Quitar del estante"
+                        title={t.shelf.removeFromShelf}
+                        aria-label={t.shelf.removeFromShelf}
                       >
                         ✕
                       </button>
@@ -125,15 +127,15 @@ export default function EstantePage() {
                         <h3 className="font-bold text-gray-900 leading-tight line-clamp-2 group-hover:text-amber-700 transition-colors">
                           {book.title}
                         </h3>
-                        <p className="text-[9px] uppercase tracking-widest text-gray-400 mt-2">Continuar Lectura</p>
+                        <p className="text-[9px] uppercase tracking-widest text-gray-400 mt-2">{t.shelf.continueReading}</p>
                       </Link>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-white rounded-[2rem] border border-dashed border-gray-200">
-                  <p className="text-gray-400 italic text-sm">No tienes libros guardados aún.</p>
-                  <Link href="/biblioteca" className="mt-4 inline-block text-[9px] font-bold uppercase tracking-widest text-amber-600 hover:underline">Ir a la Biblioteca</Link>
+                  <p className="text-gray-400 italic text-sm">{t.shelf.noBooks}</p>
+                  <Link href="/biblioteca" className="mt-4 inline-block text-[9px] font-bold uppercase tracking-widest text-amber-600 hover:underline">{t.shelf.goToLibrary}</Link>
                 </div>
               )}
             </div>
@@ -141,7 +143,7 @@ export default function EstantePage() {
             {/* --- SECCIÓN VIDEOS --- */}
             <div>
               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-red-600 mb-8 flex items-center gap-4">
-                Videos Favoritos <span className="h-px flex-1 bg-red-50"></span>
+                {t.shelf.favoriteVideos} <span className="h-px flex-1 bg-red-50"></span>
               </h2>
 
               {favorites.videos.length > 0 ? (
@@ -157,8 +159,8 @@ export default function EstantePage() {
                         <button 
                           onClick={(e) => {e.preventDefault(); removeFavorite(vid.id, 'video');}}
                           className="absolute top-2 right-2 z-20 min-w-[44px] min-h-[44px] w-11 h-11 bg-white/90 backdrop-blur rounded-full text-gray-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 translate-y-0 md:translate-y-2 md:group-hover:translate-y-0 duration-300"
-                          title="Quitar del estante"
-                          aria-label="Quitar del estante"
+                          title={t.shelf.removeFromShelf}
+                          aria-label={t.shelf.removeFromShelf}
                         >
                           ✕
                         </button>
@@ -175,15 +177,15 @@ export default function EstantePage() {
                           <h3 className="font-bold text-gray-900 leading-tight line-clamp-1 group-hover:text-red-700 transition-colors">
                             {vid.title}
                           </h3>
-                          <p className="text-[9px] uppercase tracking-widest text-gray-400 mt-2">Ver Video</p>
+                          <p className="text-[9px] uppercase tracking-widest text-gray-400 mt-2">{t.shelf.watchVideo}</p>
                         </Link>
                      </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-white rounded-[2rem] border border-dashed border-gray-200">
-                  <p className="text-gray-400 italic text-sm">No tienes videos favoritos.</p>
-                  <Link href="/aprender" className="mt-4 inline-block text-[9px] font-bold uppercase tracking-widest text-red-600 hover:underline">Ir a Aprender</Link>
+                  <p className="text-gray-400 italic text-sm">{t.shelf.noVideos}</p>
+                  <Link href="/aprender" className="mt-4 inline-block text-[9px] font-bold uppercase tracking-widest text-red-600 hover:underline">{t.shelf.goToLearn}</Link>
                 </div>
               )}
             </div>

@@ -12,27 +12,8 @@ import {
   shareEnsenanza,
   sortEnsenanzas,
   hasTelegramShareUrl,
-  AVISO_INSTITUCIONAL,
 } from "@/lib/ensenanzas";
-
-const TELEGRAM_BENEFITS = [
-  {
-    icon: "📱",
-    text: "Sigue escuchando con la pantalla bloqueada",
-  },
-  {
-    icon: "🚶",
-    text: "Ideal para el trayecto o camino",
-  },
-  {
-    icon: "🎧",
-    text: "Escucha mientras realizas tus actividades",
-  },
-  {
-    icon: "📤",
-    text: "Comparte el audio con otros hermanos para edificación",
-  },
-] as const;
+import { useLanguage } from "@/lib/language";
 
 const CATEGORY_ICONS: Record<string, string> = {
   Doctrina: "📖",
@@ -48,6 +29,7 @@ function getCategoryIcon(category?: string) {
 }
 
 export default function EnsenanzasPage() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<Ensenanza[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -77,6 +59,13 @@ export default function EnsenanzasPage() {
   }, [items]);
 
   const term = searchTerm.toLowerCase().trim();
+
+  const telegramBenefits = [
+    { icon: "📱", text: t.teachings.benefitLockScreen },
+    { icon: "🚶", text: t.teachings.benefitCommute },
+    { icon: "🎧", text: t.teachings.benefitActivities },
+    { icon: "📤", text: t.teachings.benefitShare },
+  ];
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -109,17 +98,17 @@ export default function EnsenanzasPage() {
       <section className="max-w-6xl mx-auto px-6 pt-16 sm:pt-24 pb-8 text-center">
         <div className="inline-block px-4 py-1.5 border border-amber-200 rounded-full bg-white shadow-sm mb-6">
           <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-700">
-            Ministerio local
+            {t.teachings.localMinistry}
           </span>
         </div>
         <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-gray-900 mb-4 tracking-tighter leading-tight">
-          Biblioteca de Enseñanzas
+          {t.teachings.pageTitle}
         </h1>
         <p className="text-sm sm:text-lg md:text-xl text-amber-900/50 font-medium italic max-w-2xl mx-auto mb-4 sm:mb-6">
-          Audios y estudios organizados para apoyo del ministerio local.
+          {t.teachings.pageSubtitle}
         </p>
         <p className="hidden sm:block text-[10px] sm:text-xs text-gray-400 max-w-xl mx-auto leading-relaxed px-2">
-          {AVISO_INSTITUCIONAL}
+          {t.teachings.institutionalText}
         </p>
       </section>
 
@@ -132,16 +121,16 @@ export default function EnsenanzasPage() {
             </span>
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight leading-snug">
-                Escucha la Palabra en tu camino
+                {t.teachings.telegramIntro}
               </h2>
               <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                Los audios se abren en Telegram para que puedas escucharlos con mayor comodidad: mientras viajas, trabajas, caminas o realizas tus actividades diarias. Puedes bloquear tu celular y continuar escuchando sin interrumpir la enseñanza.
+                {t.teachings.telegramDescription}
               </p>
             </div>
           </div>
 
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-            {TELEGRAM_BENEFITS.map((item) => (
+            {telegramBenefits.map((item) => (
               <li
                 key={item.text}
                 className="flex items-start gap-2.5 rounded-xl border border-amber-50/80 bg-[#fcfaf7]/80 px-3 py-2.5 sm:px-4 sm:py-3"
@@ -157,7 +146,7 @@ export default function EnsenanzasPage() {
           </ul>
 
           <p className="mt-4 border-t border-amber-100/80 pt-4 text-xs text-amber-900/70 leading-relaxed">
-            Comparte estos audios con respeto, sin alterar el contenido y procurando que sean de edificación espiritual.
+            {t.teachings.shareRespect}
           </p>
         </div>
       </section>
@@ -168,7 +157,7 @@ export default function EnsenanzasPage() {
           <div className="relative backdrop-blur-xl bg-white/80 p-1.5 rounded-full border border-white shadow-xl ring-1 ring-black/5">
             <input
               type="text"
-              placeholder="Buscar enseñanza, predicador..."
+              placeholder={t.teachings.searchPlaceholder}
               className="w-full pl-12 pr-6 py-3 bg-transparent rounded-full focus:bg-white focus:ring-2 focus:ring-amber-200 outline-none transition-all font-sans text-sm placeholder:text-gray-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -193,7 +182,7 @@ export default function EnsenanzasPage() {
                   }`}
                 >
                   {cat === "Todos"
-                    ? "🎧 Ver todo"
+                    ? `🎧 ${t.library.seeAll}`
                     : `${getCategoryIcon(cat)} ${cat}`}
                 </button>
               ))}
@@ -207,12 +196,12 @@ export default function EnsenanzasPage() {
         {loading ? (
           <div className="flex flex-col items-center py-20 opacity-50">
             <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-            <p className="text-xs uppercase tracking-widest">Cargando enseñanzas...</p>
+            <p className="text-xs uppercase tracking-widest">{t.teachings.loading}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
             <span className="text-4xl block mb-4">🎧</span>
-            <p className="text-sm">No se encontraron enseñanzas en esta categoría.</p>
+            <p className="text-sm">{t.teachings.noResults}</p>
             {(searchTerm || selectedCategory !== "Todos") && (
               <button
                 onClick={() => {
@@ -221,7 +210,7 @@ export default function EnsenanzasPage() {
                 }}
                 className="mt-4 text-amber-600 underline text-sm"
               >
-                Ver todo
+                {t.library.seeAll}
               </button>
             )}
           </div>
@@ -241,7 +230,7 @@ export default function EnsenanzasPage() {
           alt=""
         />
         <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 px-6 max-w-lg mx-auto">
-          {AVISO_INSTITUCIONAL}
+          {t.teachings.institutionalText}
         </p>
       </footer>
     </main>
@@ -249,6 +238,7 @@ export default function EnsenanzasPage() {
 }
 
 function EnsenanzaCard({ item, index }: { item: Ensenanza; index: number }) {
+  const { t } = useLanguage();
   const audioReady = isAudioAvailable(item);
   const canShareAudio = hasTelegramShareUrl(item);
   const hasYoutube = !!item.youtube_url?.trim();
@@ -304,12 +294,12 @@ function EnsenanzaCard({ item, index }: { item: Ensenanza; index: number }) {
             }}
             className="btn-telegram w-full py-3 px-4 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-2xl text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 active:scale-[0.98]"
           >
-            <span className="sm:hidden">🎧 Escuchar en Telegram</span>
-            <span className="hidden sm:inline">🎧 Escuchar enseñanza en Telegram</span>
+            <span className="sm:hidden">🎧 {t.teachings.listenTelegram}</span>
+            <span className="hidden sm:inline">🎧 {t.teachings.listenTelegramFull}</span>
           </button>
         ) : (
           <div className="w-full py-3 px-4 bg-gray-100 text-gray-500 rounded-2xl text-xs sm:text-sm font-bold text-center border border-gray-200">
-            Audio próximamente disponible
+            {t.teachings.audioComingSoon}
           </div>
         )}
 
@@ -322,7 +312,7 @@ function EnsenanzaCard({ item, index }: { item: Ensenanza; index: number }) {
             }}
             className="w-full py-2.5 px-4 bg-white border border-red-200 text-red-700 hover:bg-red-50 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
           >
-            ▶ Ver video
+            {t.teachings.viewVideo}
           </button>
         )}
 
@@ -333,11 +323,11 @@ function EnsenanzaCard({ item, index }: { item: Ensenanza; index: number }) {
               onClick={handleShare}
               className="btn-share-audio w-full min-h-[44px] py-2.5 px-4 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
             >
-              📤 Compartir audio
+              📤 {t.teachings.shareAudio}
             </button>
             {copied && (
               <p className="text-center text-[10px] font-bold text-green-700 bg-green-50 py-2 px-3 rounded-xl animate-in fade-in duration-200">
-                Enlace copiado para compartir.
+                {t.teachings.linkCopied}
               </p>
             )}
           </>
@@ -346,7 +336,7 @@ function EnsenanzaCard({ item, index }: { item: Ensenanza; index: number }) {
             className="w-full min-h-[44px] py-2.5 px-4 bg-gray-50 border border-gray-200 text-gray-400 rounded-2xl text-xs font-bold text-center flex items-center justify-center"
             aria-disabled="true"
           >
-            Audio aún no disponible
+            {t.teachings.audioNotAvailable}
           </div>
         )}
 
@@ -354,7 +344,7 @@ function EnsenanzaCard({ item, index }: { item: Ensenanza; index: number }) {
           href={`/ensenanzas/${item.id}`}
           className="block text-center text-[10px] font-bold uppercase tracking-widest text-amber-600 hover:text-amber-800 pt-1"
         >
-          Ver detalle →
+          {t.teachings.seeDetail}
         </Link>
       </div>
     </article>

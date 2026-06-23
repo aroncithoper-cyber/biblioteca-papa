@@ -23,6 +23,7 @@ import Header from "@/components/Header";
 import Link from "next/link";
 import InstallGuideModal from "@/components/InstallGuideModal";
 import { hasPendingRequestForBook, isPendingRequestStatus } from "@/lib/bookRequests";
+import { useLanguage } from "@/lib/language";
 
 type DocItem = {
   id: string;
@@ -59,6 +60,7 @@ export default function BibliotecaPage() {
   const [selectedCategory, setSelectedCategory] = useState("Todos");
 
   const router = useRouter();
+  const { t } = useLanguage();
 
   // 1. BANNER INTELIGENTE (CON MEMORIA LOCAL)
   useEffect(() => {
@@ -168,7 +170,7 @@ export default function BibliotecaPage() {
 
   // ACCIONES
   const toggleFavorite = async (item: DocItem) => {
-    if (!userId) return alert("Inicia sesión para guardar en tu estante.");
+    if (!userId) return alert(t.library.loginToSave);
     const isSaved = savedBookIds.includes(item.id);
     
     // Optimistic UI (Actualiza visualmente antes de esperar a la base de datos)
@@ -237,7 +239,7 @@ export default function BibliotecaPage() {
                 <div className="flex items-center gap-3">
                     <span className="text-xl">✨</span>
                     <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-amber-100 tracking-widest">Novedad</span>
+                        <span className="text-[10px] uppercase font-bold text-amber-100 tracking-widest">{t.library.newBadge}</span>
                         <span className="text-sm font-bold leading-tight line-clamp-1">{ultimoAviso.title}</span>
                     </div>
                 </div>
@@ -249,18 +251,23 @@ export default function BibliotecaPage() {
       {/* --- HERO SECTION --- */}
       <section className="max-w-6xl mx-auto px-6 pt-16 sm:pt-24 md:pt-32 pb-6 sm:pb-10 text-center animate-in">
         <h1 className="text-4xl sm:text-5xl md:text-8xl font-bold text-gray-900 mb-6 tracking-tighter leading-none">
-          Sala de Estudio
+          {t.library.title}
         </h1>
-        <p className="text-base sm:text-xl md:text-2xl text-amber-900/50 font-medium italic mb-8 max-w-2xl mx-auto">
-          Obra literaria y espiritual de Jose Enrique Perez Leon
+        <p className="text-base sm:text-xl md:text-2xl text-amber-900/50 font-medium italic mb-4 max-w-2xl mx-auto">
+          {t.library.subtitle}
         </p>
+        {t.library.spanishMaterialsNote && (
+          <p className="text-[11px] text-gray-400 max-w-md mx-auto mb-4 leading-relaxed">
+            {t.library.spanishMaterialsNote}
+          </p>
+        )}
 
         <div className="flex flex-wrap justify-center gap-3 mb-8">
             <button onClick={() => setShowInstallModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-white/80 border border-amber-200 rounded-full text-[10px] font-bold uppercase tracking-widest text-amber-800 hover:scale-105 transition-all">
-              <span className="text-lg">📲</span> Instalar App
+              <span className="text-lg">📲</span> {t.library.installApp}
             </button>
             <button onClick={handleEnableNotifications} className="flex items-center gap-2 px-5 py-2.5 bg-black/5 border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-widest text-gray-700 hover:bg-black hover:text-white hover:scale-105 transition-all">
-              <span className="text-lg">🔔</span> Activar Avisos
+              <span className="text-lg">🔔</span> {t.library.enableNotifications}
             </button>
         </div>
       </section>
@@ -272,7 +279,7 @@ export default function BibliotecaPage() {
           <div className="relative backdrop-blur-xl bg-white/80 p-1.5 rounded-full border border-white shadow-xl ring-1 ring-black/5">
             <input
               type="text"
-              placeholder="Buscar título..."
+              placeholder={t.library.searchPlaceholder}
               className="w-full pl-12 pr-6 py-3 bg-transparent rounded-full focus:bg-white focus:ring-2 focus:ring-amber-200 outline-none transition-all font-sans text-sm placeholder:text-gray-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -295,7 +302,7 @@ export default function BibliotecaPage() {
                                 : "bg-transparent text-gray-500 hover:bg-amber-100 hover:text-amber-800"
                             }`}
                         >
-                            {cat === "Todos" ? "📚 Ver Todo" : cat}
+                            {cat === "Todos" ? t.library.viewAll : cat}
                         </button>
                     ))}
                 </div>
@@ -309,7 +316,7 @@ export default function BibliotecaPage() {
         {loading ? (
           <div className="flex flex-col items-center py-20 opacity-50">
             <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4"></div>
-            <p className="text-xs uppercase tracking-widest">Cargando biblioteca...</p>
+            <p className="text-xs uppercase tracking-widest">{t.library.loading}</p>
           </div>
         ) : (
           <>
@@ -318,7 +325,7 @@ export default function BibliotecaPage() {
                 <div className="mb-16">
                     <div className="flex items-center gap-4 mb-8">
                         <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
-                            {selectedCategory === "Todos" ? "Colección Privada" : selectedCategory}
+                            {selectedCategory === "Todos" ? t.library.privateCollection : selectedCategory}
                         </h3>
                         <div className="h-px flex-1 bg-amber-100"></div>
                     </div>
@@ -346,7 +353,7 @@ export default function BibliotecaPage() {
                 <div>
                      <div className="flex items-center gap-4 mb-8">
                         <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
-                           Documentos Públicos
+                           {t.library.publicDocuments}
                         </h3>
                         <div className="h-px flex-1 bg-gray-200"></div>
                     </div>
@@ -364,8 +371,8 @@ export default function BibliotecaPage() {
 
             {filteredPrivate.length === 0 && filteredPublic.length === 0 && (
                 <div className="text-center py-20 text-gray-400">
-                    <p>No se encontraron documentos en esta carpeta.</p>
-                    <button onClick={() => setSelectedCategory("Todos")} className="mt-4 text-amber-600 underline text-sm">Ver todo</button>
+                    <p>{t.library.noDocuments}</p>
+                    <button onClick={() => setSelectedCategory("Todos")} className="mt-4 text-amber-600 underline text-sm">{t.library.seeAll}</button>
                 </div>
             )}
           </>
@@ -393,6 +400,7 @@ function BookCard({
   onToggleFavorite,
   onRequestSubmitted,
 }: any) {
+  const { t } = useLanguage();
   const [showModal, setShowModal] = useState(false);
   const [userName, setUserName] = useState("");
   const [phone, setPhone] = useState("");
@@ -437,7 +445,7 @@ function BookCard({
       onRequestSubmitted?.(doc.id);
       setShowModal(false);
     } catch {
-      alert("Error al enviar.");
+      alert(t.library.sendError);
     } finally {
       setSending(false);
     }
@@ -488,15 +496,15 @@ function BookCard({
 
             {hasAccess ? (
                 <Link href={`/documentos/${doc.id}`} className="block w-full py-2.5 bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-full hover:bg-amber-600 transition-colors shadow-lg">
-                    Leer Ahora
+                    {t.library.readNow}
                 </Link>
             ) : localRequested ? (
                 <div className="w-full py-2 px-2 bg-amber-50 border border-amber-200 rounded-lg">
                   <p className="text-[9px] font-bold text-amber-800 uppercase tracking-widest leading-snug">
-                    Ya lo solicitaste
+                    {t.library.alreadyRequested}
                   </p>
                   <p className="text-[8px] text-amber-600 mt-0.5 leading-snug">
-                    Espera la activación
+                    {t.library.waitAuthorization}
                   </p>
                 </div>
             ) : (
@@ -507,13 +515,13 @@ function BookCard({
                   }}
                   className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold uppercase tracking-widest rounded-full hover:border-amber-400 hover:text-amber-600 transition-colors"
                 >
-                    Solicitar
+                    {t.library.request}
                 </button>
             )}
 
             {duplicateNotice && (
               <p className="text-[8px] text-amber-700 leading-snug px-1">
-                Ya tienes una solicitud pendiente para este libro.
+                {t.library.pendingRequest}
               </p>
             )}
         </div>
@@ -522,23 +530,23 @@ function BookCard({
         {showModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                 <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
-                    <h3 className="text-center font-bold text-gray-900 mb-2">Solicitar Acceso</h3>
+                    <h3 className="text-center font-bold text-gray-900 mb-2">{t.library.requestTitle}</h3>
                     <p className="text-center text-[11px] text-gray-500 mb-6 leading-relaxed">
-                      Solo se permite una solicitud pendiente por libro.
+                      {t.library.oneRequestPerBook}
                     </p>
                     <form onSubmit={handleRequest} className="space-y-4">
                         <input
                           type="text"
-                          placeholder="Tu nombre (opcional)"
+                          placeholder={t.library.yourName}
                           value={userName}
                           onChange={(e) => setUserName(e.target.value)}
                           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-black"
                         />
-                        <input required type="tel" placeholder="Tu WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-black" />
+                        <input required type="tel" placeholder={t.library.yourWhatsapp} value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-black" />
                         <button type="submit" disabled={sending} className="w-full py-3 bg-black text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-green-600 transition-colors">
-                            {sending ? "Enviando..." : "Enviar"}
+                            {sending ? t.library.sending : t.library.send}
                         </button>
-                        <button type="button" onClick={() => setShowModal(false)} className="w-full py-2 text-xs text-gray-400 font-bold hover:text-red-500">Cancelar</button>
+                        <button type="button" onClick={() => setShowModal(false)} className="w-full py-2 text-xs text-gray-400 font-bold hover:text-red-500">{t.library.cancel}</button>
                     </form>
                 </div>
             </div>

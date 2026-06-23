@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useLanguage } from "@/lib/language";
 
 const DISMISS_KEY = "pwa-update-dismissed";
 
 export default function PwaUpdateBanner() {
+  const { t } = useLanguage();
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -101,10 +103,10 @@ export default function PwaUpdateBanner() {
     >
       <div className="rounded-2xl border border-amber-200/80 bg-white/95 p-4 shadow-xl backdrop-blur-md ring-1 ring-amber-100/60">
         <p className="text-sm font-bold text-gray-900 leading-snug">
-          Hay una nueva versión de Consejero disponible.
+          {t.pwa.updateAvailable}
         </p>
         <p className="mt-1 text-xs text-gray-500 leading-relaxed">
-          Actualiza para ver las mejoras más recientes.
+          {t.pwa.updateHint}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
@@ -112,14 +114,14 @@ export default function PwaUpdateBanner() {
             onClick={handleUpdate}
             className="btn-premium min-h-[44px] flex-1 rounded-xl bg-black px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-amber-700 active:scale-[0.98] sm:flex-none"
           >
-            Actualizar
+            {t.pwa.update}
           </button>
           <button
             type="button"
             onClick={handleDismiss}
             className="min-h-[44px] flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-gray-500 hover:bg-gray-50 active:scale-[0.98] sm:flex-none"
           >
-            Después
+            {t.pwa.later}
           </button>
         </div>
       </div>

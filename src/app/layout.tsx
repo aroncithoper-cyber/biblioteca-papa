@@ -5,6 +5,7 @@ import { PlayerProvider } from "@/lib/PlayerContext";
 import GlobalPlayer from "@/components/GlobalPlayer";
 import NotificationManager from "@/components/NotificationManager";
 import PwaUpdateBanner from "@/components/PwaUpdateBanner";
+import { LanguageProvider } from "@/lib/language";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://consejerodelobrero.org"), // 👈 IMPORTANTE (cambia si tu dominio es otro)
@@ -75,18 +76,20 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="antialiased bg-[#fcfaf7]">
-        {/* 🔔 Sistema de Notificaciones Inteligente */}
-        <NotificationManager />
+        <LanguageProvider>
+          {/* 🔔 Sistema de Notificaciones Inteligente */}
+          <NotificationManager />
 
-        {/* 🎵 Proveedor Global del Reproductor */}
-        <PlayerProvider>
-          <AuthGuard>
-            {children}
-            <GlobalPlayer />
-          </AuthGuard>
-        </PlayerProvider>
+          {/* 🎵 Proveedor Global del Reproductor */}
+          <PlayerProvider>
+            <AuthGuard>
+              {children}
+              <GlobalPlayer />
+            </AuthGuard>
+          </PlayerProvider>
 
-        <PwaUpdateBanner />
+          <PwaUpdateBanner />
+        </LanguageProvider>
 
         {/* 📴 Registro del Service Worker (Modo Offline) */}
         <script

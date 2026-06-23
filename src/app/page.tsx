@@ -8,11 +8,14 @@ import { getMessaging, getToken } from "firebase/messaging";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePlayer } from "@/lib/PlayerContext";
+import SharePlatformButton from "@/components/SharePlatformButton";
+import { useLanguage } from "@/lib/language";
 
 export default function LandingPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showGuide, setShowGuide] = useState(false);
   const { currentVideo } = usePlayer();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -35,8 +38,8 @@ export default function LandingPage() {
     
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      new Notification("¡Bienvenido al Acervo!", {
-        body: "Gracias por unirte. Aquí te avisaremos cuando subamos nuevos libros.",
+      new Notification(t.home.notificationWelcomeTitle, {
+        body: t.home.notificationWelcomeBody,
         icon: "/icon-192.png",
         // @ts-ignore
         vibrate: [200, 100, 200]
@@ -60,7 +63,7 @@ export default function LandingPage() {
       }
 
     } else {
-      alert("⚠️ Debes dar permiso en el navegador para recibir avisos.");
+      alert(t.home.notificationPermission);
     }
   };
 
@@ -82,7 +85,7 @@ export default function LandingPage() {
             className="btn-premium flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-2xl border-2 border-white hover:bg-black pointer-events-auto active:scale-[0.98]"
           >
             <span className="text-base">📲</span>
-            <span>Instalar App</span>
+            <span>{t.home.installApp}</span>
           </button>
         )}
 
@@ -91,7 +94,7 @@ export default function LandingPage() {
             className="btn-premium flex items-center gap-2 px-4 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-black hover:text-white pointer-events-auto active:scale-[0.98]"
         >
             <span className="text-base">🔔</span>
-            <span className="hidden sm:inline">Avisos</span>
+            <span className="hidden sm:inline">{t.home.notifications}</span>
         </button>
 
         <button 
@@ -99,7 +102,7 @@ export default function LandingPage() {
           className="btn-premium flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur text-gray-800 rounded-full font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl border border-gray-200 hover:bg-gray-50 pointer-events-auto active:scale-[0.98]"
         >
           <span className="text-base">❓</span>
-          <span>¿Cómo instalar?</span>
+          <span>{t.home.howToInstall}</span>
         </button>
       </div>
 
@@ -111,19 +114,19 @@ export default function LandingPage() {
           {/* CAMBIO 1: LEGADO ESPIRITUAL */}
           <div className="inline-block border border-amber-200/50 rounded-full px-4 py-1.5 bg-white/50 backdrop-blur shadow-sm mb-4">
             <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-amber-700">
-              Legado Espiritual
+              {t.home.spiritualLegacy}
             </span>
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9]">
-            El Legado del <br />
+            {t.home.heroTitle1} <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-600 to-amber-800">
-              Obrero
+              {t.home.heroTitle2}
             </span>
           </h1>
 
           <p className="text-lg md:text-xl text-gray-500 italic font-medium max-w-2xl mx-auto leading-relaxed pt-4">
-            "Instruye al niño en su camino, y aun cuando fuere viejo no se apartará de él."
+            {t.home.heroQuote}
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-10">
@@ -131,14 +134,15 @@ export default function LandingPage() {
               href="/biblioteca"
               className="btn-premium w-full sm:w-auto px-10 py-4 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-[0.25em] shadow-xl hover:bg-amber-600 hover:shadow-2xl active:scale-[0.98]"
             >
-              Explorar la Obra
+              {t.home.exploreWork}
             </Link>
             <Link
               href="/galeria"
               className="btn-premium w-full sm:w-auto px-10 py-4 bg-white text-gray-900 border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-[0.25em] hover:bg-gray-50 hover:border-gray-400 active:scale-[0.98]"
             >
-              Ver Galería
+              {t.home.viewGallery}
             </Link>
+            <SharePlatformButton variant="inline" className="w-full sm:w-auto" />
           </div>
         </div>
       </section>
@@ -163,7 +167,7 @@ export default function LandingPage() {
 
           <div className="space-y-8 text-center md:text-left">
             <h2 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tight leading-tight">
-              Un corazón dispuesto al <span className="text-amber-600 underline decoration-amber-200 decoration-4 underline-offset-4">servicio.</span>
+              {t.home.serviceHeart} <span className="text-amber-600 underline decoration-amber-200 decoration-4 underline-offset-4">{t.home.service}</span>
             </h2>
             <div className="w-20 h-1 bg-amber-500 rounded-full mx-auto md:mx-0" />
             
@@ -178,11 +182,11 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 gap-8 pt-6 border-t border-gray-100 mt-8">
               <div>
                 <h3 className="text-4xl font-black text-amber-600">40+</h3>
-                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">Años sirviendo</p>
+                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">{t.home.yearsServing}</p>
               </div>
               <div>
                 <h3 className="text-4xl font-black text-amber-600">∞</h3>
-                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">Gratitud Eterna</p>
+                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">{t.home.eternalGratitude}</p>
               </div>
             </div>
           </div>
@@ -197,11 +201,13 @@ export default function LandingPage() {
         
         {/* CAMBIO 2: DISCLAIMER PARA EVITAR REGAÑOS */}
         <p className="text-[10px] text-gray-400 font-light max-w-xl mx-auto leading-relaxed mb-6 px-4">
-          Esta plataforma es un archivo personal destinado a la edificación ministerial y de la iglesia.
+          {t.home.footerDisclaimer}
         </p>
-        
+
+        <SharePlatformButton variant="footer" className="mb-6" />
+
         <p className="text-[8px] text-gray-600 italic font-serif">
-          Protección de Derechos Reservados
+          {t.home.rightsReserved}
         </p>
       </footer>
     </main>

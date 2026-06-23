@@ -6,11 +6,13 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import FlipbookViewer from "@/components/FlipbookViewer";
+import { useLanguage } from "@/lib/language";
 
 export default function DocumentoPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params?.id;
+  const { t } = useLanguage();
 
   const [title, setTitle] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
@@ -34,7 +36,7 @@ export default function DocumentoPage() {
         const data = snap.data() as any;
         if (!alive) return;
 
-        setTitle(data.title || "Volumen de Estudio");
+        setTitle(data.title || t.document.defaultVolume);
 
         const fileUrl = data.fileUrl || data.pdfUrl;
         if (!fileUrl) {
@@ -52,7 +54,7 @@ export default function DocumentoPage() {
     return () => {
       alive = false;
     };
-  }, [id, router]);
+  }, [id, router, t.document.defaultVolume]);
 
   return (
     <main
@@ -78,8 +80,8 @@ export default function DocumentoPage() {
             onClick={() => router.push("/biblioteca")}
           >
             <span className="text-xl group-hover:-translate-x-1 transition-transform">←</span>
-            <span className="sm:hidden">Volver</span>
-            <span className="hidden sm:inline">Volver a la Biblioteca</span>
+            <span className="sm:hidden">{t.document.back}</span>
+            <span className="hidden sm:inline">{t.document.backToLibrary}</span>
           </button>
 
           <div className="flex items-center gap-3 sm:gap-4 self-start sm:self-auto">
@@ -93,13 +95,13 @@ export default function DocumentoPage() {
               }`}
             >
               <span className="text-sm">{isNightMode ? "☀️" : "🌙"}</span>
-              <span>{isNightMode ? "Modo Día" : "Modo Noche"}</span>
+              <span>{isNightMode ? t.document.dayMode : t.document.nightMode}</span>
             </button>
 
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
             <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] sm:tracking-[0.3em] text-amber-700 font-bold">
-              <span className="sm:hidden">Protegido</span>
-              <span className="hidden sm:inline">Lectura Protegida</span>
+              <span className="sm:hidden">{t.document.protected}</span>
+              <span className="hidden sm:inline">{t.document.protectedReading}</span>
             </span>
           </div>
         </div>
@@ -112,7 +114,7 @@ export default function DocumentoPage() {
               ? "bg-gray-800 border-gray-700 text-amber-400"
               : "bg-white border-amber-200 text-gray-600"
           }`}
-          aria-label={isNightMode ? "Modo día" : "Modo noche"}
+          aria-label={isNightMode ? t.document.dayModeAria : t.document.nightModeAria}
         >
           <span className="text-lg">{isNightMode ? "☀️" : "🌙"}</span>
         </button>
@@ -123,14 +125,14 @@ export default function DocumentoPage() {
               isNightMode ? "text-amber-600/40" : "text-amber-600/60"
             }`}
           >
-            Legacy Collection
+            {t.document.legacyCollection}
           </p>
           <h1
             className={`text-2xl sm:text-4xl md:text-6xl font-bold tracking-tighter max-w-4xl mx-auto leading-tight px-2 ${
               isNightMode ? "text-gray-100" : "text-gray-900"
             }`}
           >
-            {loading ? "Abriendo los archivos..." : title}
+            {loading ? t.document.openingFiles : title}
           </h1>
           <div className="flex justify-center items-center gap-4">
             <div className={`h-px w-16 ${isNightMode ? "bg-gray-800" : "bg-gray-200"}`} />
@@ -169,7 +171,7 @@ export default function DocumentoPage() {
                   isNightMode ? "text-gray-500" : "text-amber-800/40"
                 }`}
               >
-                Preparando ejemplar único
+                {t.document.preparingVolume}
               </p>
             </div>
           ) : (

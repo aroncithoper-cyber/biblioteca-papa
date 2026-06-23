@@ -10,9 +10,11 @@ import {
 import { auth } from "@/lib/firebase";
 import { isAdminEmail } from "@/lib/adminEmails";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/language";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   
   // Estados de datos
   const [email, setEmail] = useState("");
@@ -44,7 +46,7 @@ export default function LoginPage() {
       
       if (isRegistering) {
         // REGISTRO DE NUEVO HERMANO
-        if (!name.trim()) throw new Error("Por favor escribe tu nombre.");
+        if (!name.trim()) throw new Error(t.auth.enterName);
         
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
         
@@ -66,15 +68,15 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/email-already-in-use") {
-        setError("Este correo ya tiene cuenta. Intenta iniciar sesión.");
+        setError(t.auth.emailInUse);
       } else if (err.code === "auth/weak-password") {
-        setError("La contraseña debe tener al menos 6 caracteres.");
+        setError(t.auth.weakPassword);
       } else if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
-        setError("Correo o contraseña incorrectos.");
-      } else if (err.message === "Por favor escribe tu nombre.") {
+        setError(t.auth.invalidCredentials);
+      } else if (err.message === t.auth.enterName) {
         setError(err.message);
       } else {
-        setError("Ocurrió un error. Revisa tu conexión.");
+        setError(t.auth.genericError);
       }
     } finally {
       setLoading(false);
@@ -84,7 +86,7 @@ export default function LoginPage() {
   // FUNCIÓN PARA RECUPERAR CONTRASEÑA
   const handleResetPassword = async () => {
     if (!email.trim()) {
-      setError("Escribe tu correo arriba para enviarte el enlace.");
+      setError(t.auth.resetNeedEmail);
       return;
     }
     setLoading(true);
@@ -93,12 +95,12 @@ export default function LoginPage() {
 
     try {
       await sendPasswordResetEmail(auth, email);
-      setMsg("✅ Enlace enviado. Revisa tu correo (y carpeta de Spam) para cambiar tu contraseña.");
+      setMsg(t.auth.resetSent);
     } catch (err: any) {
       if (err.code === "auth/user-not-found") {
-        setError("No encontramos ninguna cuenta con este correo.");
+        setError(t.auth.userNotFound);
       } else {
-        setError("No se pudo enviar el correo. Verifica que esté bien escrito.");
+        setError(t.auth.resetFailed);
       }
     } finally {
       setLoading(false);
@@ -114,10 +116,10 @@ export default function LoginPage() {
         <div className="text-center mb-10">
           <img src="/icon-512.png" className="w-12 h-12 mx-auto mb-6 grayscale opacity-20" alt="" />
           <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-[0.2em]">
-            {isRegistering ? "Crear Cuenta" : "Bienvenido"}
+            {isRegistering ? t.auth.createAccount : t.auth.welcome}
           </h1>
           <p className="text-amber-700/50 text-[10px] mt-2 uppercase tracking-widest font-bold italic">
-            {isRegistering ? "Únete a la Biblioteca Digital" : "Acceso a la Obra del Obrero"}
+            {isRegistering ? t.auth.joinLibrary : t.auth.accessWork}
           </p>
         </div>
 
@@ -126,11 +128,11 @@ export default function LoginPage() {
           {isRegistering && (
             <div className="group">
               <label className="block text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1 ml-1 group-focus-within:text-amber-600 transition-colors">
-                Nombre Completo
+                {t.auth.fullName}
               </label>
               <input
                 type="text"
-                placeholder="Ej. Juan Pérez"
+                placeholder={t.auth.namePlaceholder}
                 className="w-full border-b border-gray-100 focus:border-amber-400 outline-none px-1 py-3 transition-all text-sm bg-transparent"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -142,11 +144,11 @@ export default function LoginPage() {
           {/* CAMPO CORREO */}
           <div className="group">
             <label className="block text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1 ml-1 group-focus-within:text-amber-600 transition-colors">
-              Correo Electrónico
+              {t.auth.email}
             </label>
             <input
               type="email"
-              placeholder="tu@correo.com"
+              placeholder={t.auth.emailPlaceholder}
               className="w-full border-b border-gray-100 focus:border-amber-400 outline-none px-1 py-3 transition-all text-sm bg-transparent"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -157,7 +159,7 @@ export default function LoginPage() {
           {/* CAMPO CONTRASEÑA CON OJITO */}
           <div className="group relative">
             <label className="block text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1 ml-1 group-focus-within:text-amber-600 transition-colors">
-              Contraseña
+              {t.auth.password}
             </label>
             <input
               type={showPassword ? "text" : "password"}
@@ -206,7 +208,7 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full bg-black text-white py-5 rounded-full mt-8 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-amber-700 transition-all shadow-xl active:scale-95 disabled:bg-gray-200"
         >
-          {loading ? "Procesando..." : isRegistering ? "Registrarme Ahora" : "Entrar a la Biblioteca"}
+          {loading ? t.auth.processing : isRegistering ? t.auth.registerNow : t.auth.enterLibrary}
         </button>
         
         {/* BOTÓN RECUPERAR CONTRASEÑA (SOLO EN LOGIN) */}
@@ -218,7 +220,7 @@ export default function LoginPage() {
                disabled={loading}
                className="text-[9px] text-gray-400 hover:text-amber-600 font-bold uppercase tracking-wider transition-colors"
              >
-               ¿Olvidaste tu contraseña?
+               {t.auth.forgotPassword}
              </button>
            </div>
         )}
@@ -233,7 +235,7 @@ export default function LoginPage() {
             }}
             className="text-[10px] text-amber-800/60 font-bold uppercase tracking-widest hover:text-black transition-colors"
           >
-            {isRegistering ? "¿Ya tienes cuenta? Inicia Sesión" : "¿No tienes cuenta? Regístrate aquí"}
+            {isRegistering ? t.auth.hasAccount : t.auth.noAccount}
           </button>
           
           <br />
@@ -243,7 +245,7 @@ export default function LoginPage() {
             onClick={() => router.push("/")}
             className="text-[9px] text-gray-300 uppercase tracking-[0.4em] hover:text-gray-900 transition-colors"
           >
-            Regresar al Inicio
+            {t.auth.backHome}
           </button>
         </div>
       </form>

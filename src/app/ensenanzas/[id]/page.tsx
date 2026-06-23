@@ -12,9 +12,8 @@ import {
   openExternalUrl,
   shareEnsenanza,
   hasTelegramShareUrl,
-  AVISO_INSTITUCIONAL,
-  AVISO_USO_RECOMENDADO,
 } from "@/lib/ensenanzas";
+import { useLanguage } from "@/lib/language";
 
 function getYouTubeEmbedUrl(url: string): string | null {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -26,6 +25,7 @@ function getYouTubeEmbedUrl(url: string): string | null {
 export default function EnsenanzaDetailPage() {
   const params = useParams();
   const id = params?.id as string;
+  const { t } = useLanguage();
 
   const [item, setItem] = useState<Ensenanza | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,25 +76,25 @@ export default function EnsenanzaDetailPage() {
           href="/ensenanzas"
           className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-amber-600 hover:text-amber-800 mb-8 transition-colors"
         >
-          ← Volver a la biblioteca
+          {t.teachings.backToLibrary}
         </Link>
 
         {loading ? (
           <div className="flex flex-col items-center py-24 opacity-50">
             <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-            <p className="text-xs uppercase tracking-widest">Cargando...</p>
+            <p className="text-xs uppercase tracking-widest">{t.auth.verifying}</p>
           </div>
         ) : notFound || !item ? (
           <div className="text-center py-24">
             <span className="text-5xl block mb-4">🎧</span>
             <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              Enseñanza no encontrada
+              {t.teachings.notFound}
             </h1>
             <Link
               href="/ensenanzas"
               className="text-amber-600 underline text-sm"
             >
-              Regresar al catálogo
+              {t.teachings.backToCatalog}
             </Link>
           </div>
         ) : (
@@ -157,11 +157,11 @@ export default function EnsenanzaDetailPage() {
                   onClick={() => openExternalUrl(item.telegram_url!)}
                   className="btn-telegram w-full min-h-[44px] py-4 px-6 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-2xl text-sm sm:text-base font-bold shadow-lg flex items-center justify-center gap-2 active:scale-[0.98]"
                 >
-                  🎧 Escuchar enseñanza en Telegram
+                  🎧 {t.teachings.listenTelegramFull}
                 </button>
               ) : (
                 <div className="w-full py-4 px-6 bg-gray-100 text-gray-500 rounded-2xl text-sm font-bold text-center border border-gray-200">
-                  Audio próximamente disponible
+                  {t.teachings.audioComingSoon}
                 </div>
               )}
 
@@ -171,7 +171,7 @@ export default function EnsenanzaDetailPage() {
                   onClick={() => openExternalUrl(item.youtube_url!)}
                   className="w-full min-h-[44px] py-3 px-6 bg-white border-2 border-red-200 text-red-700 hover:bg-red-50 rounded-2xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
                 >
-                  ▶ Ver video en YouTube
+                  {t.teachings.viewVideo}
                 </button>
               )}
 
@@ -182,11 +182,11 @@ export default function EnsenanzaDetailPage() {
                     onClick={handleShare}
                     className="btn-share-audio w-full min-h-[44px] py-3 px-6 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
                   >
-                    📤 Compartir audio
+                    📤 {t.teachings.shareAudio}
                   </button>
                   {copied && (
                     <p className="text-center text-xs font-bold text-green-700 bg-green-50 py-2.5 px-4 rounded-xl animate-in fade-in duration-200">
-                      Enlace copiado para compartir.
+                      {t.teachings.linkCopied}
                     </p>
                   )}
                 </>
@@ -195,7 +195,7 @@ export default function EnsenanzaDetailPage() {
                   className="w-full min-h-[44px] py-3 px-6 bg-gray-50 border border-gray-200 text-gray-400 rounded-2xl text-sm font-bold text-center flex items-center justify-center"
                   aria-disabled="true"
                 >
-                  Audio aún no disponible
+                  {t.teachings.audioNotAvailable}
                 </div>
               )}
             </div>
@@ -203,17 +203,17 @@ export default function EnsenanzaDetailPage() {
             {audioReady && (
               <div className="card-enter mb-4 rounded-xl border border-amber-100/80 bg-white/70 px-4 py-3.5 shadow-sm backdrop-blur-sm ring-1 ring-amber-50/80">
                 <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-                  Puedes escuchar este audio en Telegram con la pantalla bloqueada, durante tu camino o mientras realizas tus actividades.
+                  {t.teachings.telegramTip}
                 </p>
                 <p className="mt-2 text-[11px] sm:text-xs text-amber-900/65 leading-relaxed">
-                  Compártelo con respeto para edificación espiritual.
+                  {t.teachings.shareTip}
                 </p>
               </div>
             )}
 
             <div className="bg-white/80 border border-amber-100 rounded-2xl p-5 sm:p-6 mb-10">
               <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-                {AVISO_USO_RECOMENDADO}
+                {t.teachings.recommendedUse}
               </p>
             </div>
 
@@ -231,10 +231,10 @@ export default function EnsenanzaDetailPage() {
 
             <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-5 sm:p-6">
               <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-2">
-                Aviso institucional
+                {t.teachings.institutionalNotice}
               </p>
               <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-                {AVISO_INSTITUCIONAL}
+                {t.teachings.institutionalText}
               </p>
             </div>
           </article>

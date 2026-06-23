@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import HTMLFlipBook from "react-pageflip";
 import * as pdfjsLib from "pdfjs-dist";
 import { auth } from "@/lib/firebase";
+import { useLanguage } from "@/lib/language";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -47,6 +48,7 @@ function getVisiblePageCount(pages: (string | null)[]): number {
 }
 
 export default function FlipbookViewer({ fileUrl }: Props) {
+  const { t } = useLanguage();
   const bookRef = useRef<any>(null);
   const observer = useRef<IntersectionObserver | null>(null);
   const pdfDocRef = useRef<any>(null);
@@ -150,26 +152,26 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         if (p > 1 && p <= totalPages) {
           setTimeout(() => {
             manualGoToPage(p);
-            setResumeMsg(`📖 Retomando en pág. ${p}`);
+            setResumeMsg(`${t.pdf.resumePage} ${p}`);
             setTimeout(() => setResumeMsg(""), 3000);
           }, 500);
         }
       }
     }
-  }, [loading, totalPages, storageKey, manualGoToPage]);
+  }, [loading, totalPages, storageKey, manualGoToPage, t.pdf.resumePage]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && (k === "p" || k === "s" || k === "c")) {
         e.preventDefault();
-        alert("Contenido protegido por derechos de autor - El Consejo del Obrero");
+        alert(t.pdf.protectedContent);
       }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () =>
       window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
-  }, []);
+  }, [t.pdf.protectedContent]);
 
   useEffect(() => {
     renderLoopRef.current.cancelled = false;
@@ -236,7 +238,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           }).promise;
         } catch {
           const res = await fetch(fileUrl, { cache: "force-cache" });
-          if (!res.ok) throw new Error("Error cargando documento");
+          if (!res.ok) throw new Error(t.pdf.loadError);
           const data = await res.arrayBuffer();
           pdfDoc = await pdfjsLib.getDocument({ data }).promise;
         }
@@ -304,7 +306,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         }
       } catch {
         if (loop.cancelled) return;
-        setErrMsg("No se pudo cargar el documento.");
+        setErrMsg(t.pdf.loadErrorDetail);
         setLoading(false);
         setBackgroundRendering(false);
       }
@@ -416,21 +418,28 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               onClick={() => setViewMode(viewMode === "flip" ? "scroll" : "flip")}
               className="min-h-[44px] flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-full text-[10px] font-bold uppercase hover:shadow-lg transition-all active:scale-95"
             >
-              {viewMode === "flip" ? "📱 Modo Ebook" : "📖 Modo Libro 3D"}
+              {viewMode === "flip" ? `📱 ${t.pdf.ebookMode}` : `📖 ${t.pdf.flipMode}`}
             </button>
             <div
               className={`flex gap-1.5 p-1.5 rounded-full ${
                 theme === "dark" ? "bg-gray-800" : "bg-gray-100"
               }`}
             >
-              {(["light", "sepia", "dark"] as Theme[]).map((t) => (
+              {(["light", "sepia", "dark"] as Theme[]).map((themeKey) => (
                 <button
-                  key={t}
+                  key={themeKey}
                   type="button"
-                  onClick={() => setTheme(t)}
+                  onClick={() => setTheme(themeKey)}
+                  aria-label={
+                    themeKey === "light"
+                      ? t.pdf.themeLight
+                      : themeKey === "sepia"
+                      ? t.pdf.themeSepia
+                      : t.pdf.themeDark
+                  }
                   className={`min-w-[44px] min-h-[44px] md:min-w-7 md:min-h-7 md:w-7 md:h-7 rounded-full border ${
-                    theme === t ? "ring-2 ring-amber-500" : "opacity-60"
-                  } ${t === "light" ? "bg-white" : t === "sepia" ? "bg-[#f4ecd8]" : "bg-[#2c2c2c]"}`}
+                    theme === themeKey ? "ring-2 ring-amber-500" : "opacity-60"
+                  } ${themeKey === "light" ? "bg-white" : themeKey === "sepia" ? "bg-[#f4ecd8]" : "bg-[#2c2c2c]"}`}
                 />
               ))}
             </div>
@@ -481,7 +490,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
                 type="submit"
                 className="min-h-[44px] px-4 text-xs font-bold uppercase text-amber-600"
               >
-                Ir
+                {t.pdf.go}
               </button>
             </form>
           </div>
@@ -495,7 +504,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin" />
           </div>
           <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">
-            Preparando… {progress}%
+            {t.pdf.preparing} {progress}%
           </p>
         </div>
       )}
@@ -573,11 +582,11 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           <div
             className={`text-center py-2.5 text-[10px] font-bold uppercase tracking-widest sticky top-[4.5rem] sm:top-20 z-20 ${headerBg} backdrop-blur-sm border-b border-gray-100/10`}
           >
-            Vista Continua • Pág. {currentPage}
+            {t.pdf.continuousView} • {t.pdf.page} {currentPage}
             {totalPages > 0 ? ` / ${totalPages}` : ""}
             {backgroundRendering && (
               <span className="block mt-1 text-[9px] font-normal normal-case text-amber-600">
-                Preparando páginas… {currentRender}/{totalPages}
+                {t.pdf.preparingPages} {currentRender}/{totalPages}
               </span>
             )}
           </div>

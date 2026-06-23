@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Header from "@/components/Header";
+import { useLanguage } from "@/lib/language";
 
 export default function GaleriaPage() {
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     (async () => {
@@ -40,7 +42,7 @@ export default function GaleriaPage() {
             <button
               type="button"
               onClick={() => setSelectedPhoto(null)}
-              aria-label="Cerrar"
+              aria-label={t.nav.close}
               className="absolute top-4 right-4 sm:top-6 sm:right-6 min-w-[48px] min-h-[48px] w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors z-50"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
@@ -53,7 +55,7 @@ export default function GaleriaPage() {
                 <img 
                     src={selectedPhoto.url} 
                     className="max-w-full max-h-[80vh] object-contain rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.5)] border-4 border-white/10" 
-                    alt="Detalle"
+                    alt={t.gallery.detail}
                 />
                 {selectedPhoto.description && (
                     <p className="text-white/80 text-center mt-6 text-sm font-light italic tracking-wider max-w-xl animate-in slide-in-from-bottom-4">
@@ -69,16 +71,16 @@ export default function GaleriaPage() {
         <div className="text-center mb-16 sm:mb-24 space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <div className="inline-block border border-amber-200 rounded-full px-6 py-2 bg-white/50 backdrop-blur-sm">
              <span className="text-amber-800 font-black text-[10px] uppercase tracking-[0.4em]">
-                Álbum Familiar
+                {t.gallery.familyAlbum}
              </span>
           </div>
 
           <h1 className="text-5xl sm:text-6xl md:text-8xl font-black text-gray-900 tracking-tighter leading-none">
-            Galería de <br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-600 to-amber-900">Recuerdos</span>
+            {t.gallery.title1} <br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-600 to-amber-900">{t.gallery.title2}</span>
           </h1>
 
           <p className="text-gray-500 italic text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
-            Momentos compartidos en la obra y el ministerio de Jose Enrique Perez Leon.
+            {t.gallery.subtitle}
           </p>
         </div>
 
@@ -86,7 +88,7 @@ export default function GaleriaPage() {
           <div className="flex flex-col items-center justify-center py-32 gap-4">
             <div className="w-12 h-12 border-4 border-amber-100 border-t-amber-600 rounded-full animate-spin"></div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-300">
-              Revelando fotografías...
+              {t.gallery.loading}
             </p>
           </div>
         ) : (
@@ -104,7 +106,7 @@ export default function GaleriaPage() {
                     
                     <img
                       src={photo.thumbUrl || photo.url}
-                      alt={photo.description || "Foto"}
+                      alt={photo.description || t.gallery.photo}
                       className="w-full h-auto object-cover transform transition-all duration-[1500ms] ease-out 
                                  filter grayscale contrast-[1.1] brightness-[0.9] 
                                  group-hover:grayscale-0 group-hover:contrast-100 group-hover:brightness-100 group-hover:scale-105"
@@ -141,7 +143,7 @@ export default function GaleriaPage() {
           <div className="flex flex-col items-center justify-center py-32 border-2 border-dashed border-amber-100 rounded-[3rem] bg-white/50">
             <span className="text-4xl mb-4 opacity-30">📸</span>
             <p className="text-gray-400 italic">
-              El álbum está esperando su primera fotografía.
+              {t.gallery.empty}
             </p>
           </div>
         )}
@@ -150,7 +152,7 @@ export default function GaleriaPage() {
       <footer className="py-20 text-center relative z-10">
         <img src="/icon-512.png" className="w-10 h-10 mx-auto mb-6 grayscale opacity-20" alt="Logo" />
         <p className="text-[9px] uppercase tracking-[0.3em] text-gray-400 font-bold">
-          Archivo Histórico RV1909
+          {t.gallery.footer}
         </p>
       </footer>
     </main>

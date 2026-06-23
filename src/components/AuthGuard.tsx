@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { usePathname, useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/language";
 
 export default function AuthGuard({
   children,
@@ -12,6 +13,7 @@ export default function AuthGuard({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLanguage();
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +54,7 @@ export default function AuthGuard({
         {/* Spinner elegante color Ámbar */}
         <div className="w-10 h-10 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-900/40 animate-pulse">
-          Verificando...
+          {t.auth.verifying}
         </p>
       </div>
     );
