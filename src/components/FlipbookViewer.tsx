@@ -13,45 +13,32 @@ type Theme = "light" | "sepia" | "dark";
 type ViewMode = "flip" | "scroll";
 
 const MOBILE_INITIAL_PAGES = 2;
-const MOBILE_BATCH_SIZE = 1;
-const MOBILE_RENDER_DELAY_MS = 180;
-const MOBILE_MIN_ZOOM = 0.85;
-const MOBILE_MAX_ZOOM = 1.75;
-const MOBILE_ZOOM_STEP = 0.1;
-const DESKTOP_BATCH_SIZE = 3;
+const MOBILE_BATCH_SIZE = 2;
+const MOBILE_RENDER_DELAY_MS = 120;
+const DESKTOP_BATCH_SIZE = 4;
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function detectAndroid(): boolean {
+function isMobileViewport(): boolean {
   if (typeof window === "undefined") return false;
-  return /Android/i.test(navigator.userAgent);
+  return window.matchMedia("(max-width: 767px)").matches;
 }
 
-function detectMobileReader(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(max-width: 767px)").matches ||
-    /Android/i.test(navigator.userAgent)
-  );
+function getRenderScale(): number {
+  if (typeof window === "undefined") return 2;
+  const dpr = window.devicePixelRatio || 1;
+  if (isMobileViewport()) {
+    return clamp(dpr * 1.35, 1.35, 2.0);
+  }
+  return 2.0;
 }
 
 function yieldToMain(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function idleYield(): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      (window as any).requestIdleCallback(() => resolve(), { timeout: 120 });
-    } else {
-      setTimeout(resolve, 32);
-    }
-  });
-}
-
-/** Solo páginas consecutivas desde la 1 — evita placeholders masivos en el DOM. */
 function getVisiblePageCount(pages: (string | null)[]): number {
   if (pages.length === 0) return 0;
   const firstGap = pages.findIndex((p) => !p);
@@ -66,7 +53,6 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   const blobUrlsRef = useRef<string[]>([]);
   const pauseRenderUntilRef = useRef(0);
   const renderLoopRef = useRef<{ cancelled: boolean }>({ cancelled: false });
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [pages, setPages] = useState<(string | null)[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,30 +65,23 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   const [resumeMsg, setResumeMsg] = useState("");
 
   const [zoom, setZoom] = useState(1);
-  const [mobileZoom, setMobileZoom] = useState(1);
   const [theme, setTheme] = useState<Theme>("light");
   const [targetPage, setTargetPage] = useState("");
-
-  const [isMobileReader, setIsMobileReader] = useState(detectMobileReader);
-  const [isAndroid, setIsAndroid] = useState(detectAndroid);
-  const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    detectMobileReader() ? "scroll" : "flip"
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>("flip");
   const [bookDimensions, setBookDimensions] = useState({ width: 380, height: 560 });
 
   const isZoomedFlip = zoom > 1.01;
-  const maxZoom = isMobileReader ? 1.5 : 3.0;
-
+  const maxZoom = 3.0;
   const storageKey = `progress_${fileUrl}`;
 
-  const pauseBackgroundRender = useCallback((ms = 2500) => {
+  const pauseBackgroundRender = useCallback((ms = 2000) => {
     pauseRenderUntilRef.current = Date.now() + ms;
   }, []);
 
   const waitIfPaused = useCallback(async () => {
     while (Date.now() < pauseRenderUntilRef.current) {
       if (renderLoopRef.current.cancelled) return false;
-      await yieldToMain(80);
+      await yieldToMain(60);
     }
     return !renderLoopRef.current.cancelled;
   }, []);
@@ -116,94 +95,52 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     blobUrlsRef.current = [];
   }, []);
 
-  const saveProgress = useCallback((pageNum: number) => {
-    if (pageNum > 0) {
-      localStorage.setItem(storageKey, pageNum.toString());
-      setCurrentPage(pageNum);
-    }
-  }, [storageKey]);
+  const saveProgress = useCallback(
+    (pageNum: number) => {
+      if (pageNum > 0) {
+        localStorage.setItem(storageKey, pageNum.toString());
+        setCurrentPage(pageNum);
+      }
+    },
+    [storageKey]
+  );
 
-  const manualGoToPage = useCallback((p: number) => {
-    if (!Number.isFinite(p) || p < 1 || p > totalPages) return;
+  const manualGoToPage = useCallback(
+    (p: number) => {
+      if (!Number.isFinite(p) || p < 1 || p > totalPages) return;
 
-    if (viewMode === "flip" && !isMobileReader) {
-      bookRef.current?.pageFlip()?.turnToPage(p - 1);
-      saveProgress(p);
-    } else {
-      const container = scrollContainerRef.current;
-      const el = document.getElementById(`page-${p - 1}`);
-      if (el && container) {
-        container.scrollTo({
-          top: el.offsetTop,
-          behavior: "auto",
+      if (viewMode === "flip") {
+        bookRef.current?.pageFlip()?.turnToPage(p - 1);
+        saveProgress(p);
+      } else {
+        document.getElementById(`page-${p - 1}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
         });
         saveProgress(p);
-      } else if (el) {
-        el.scrollIntoView({ behavior: "auto", block: "start" });
-        saveProgress(p);
       }
-    }
-  }, [viewMode, isMobileReader, totalPages, saveProgress]);
+    },
+    [viewMode, totalPages, saveProgress]
+  );
 
   useEffect(() => {
-    const mobile = detectMobileReader();
-    setIsMobileReader(mobile);
-    setIsAndroid(detectAndroid());
-    if (mobile) {
-      setViewMode("scroll");
-      setZoom(1);
-      setMobileZoom(1);
-    } else {
-      setViewMode("flip");
-    }
+    const apply = () => {
+      if (isMobileViewport()) setViewMode("scroll");
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
   }, []);
 
-  const adjustMobileWidth = useCallback(() => {
-    setMobileZoom(1);
-    pauseBackgroundRender(2000);
-  }, [pauseBackgroundRender]);
-
-  const zoomMobileIn = useCallback(() => {
-    setMobileZoom((z) =>
-      clamp(+(z + MOBILE_ZOOM_STEP).toFixed(2), MOBILE_MIN_ZOOM, MOBILE_MAX_ZOOM)
-    );
-    pauseBackgroundRender(2500);
-  }, [pauseBackgroundRender]);
-
-  const zoomMobileOut = useCallback(() => {
-    setMobileZoom((z) =>
-      clamp(+(z - MOBILE_ZOOM_STEP).toFixed(2), MOBILE_MIN_ZOOM, MOBILE_MAX_ZOOM)
-    );
-    pauseBackgroundRender(2500);
-  }, [pauseBackgroundRender]);
-
   useEffect(() => {
-    if (!isMobileReader) return;
-
     const pause = () => pauseBackgroundRender(2000);
-    const container = scrollContainerRef.current;
-
-    container?.addEventListener("touchstart", pause, { passive: true });
-    container?.addEventListener("scroll", pause, { passive: true });
-
+    window.addEventListener("scroll", pause, { passive: true });
+    window.addEventListener("touchstart", pause, { passive: true });
     return () => {
-      container?.removeEventListener("touchstart", pause);
-      container?.removeEventListener("scroll", pause);
+      window.removeEventListener("scroll", pause);
+      window.removeEventListener("touchstart", pause);
     };
-  }, [isMobileReader, pauseBackgroundRender, loading, pages.length]);
-
-  useEffect(() => {
-    if (!isMobileReader || loading) return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const blockContextMenu = (e: Event) => e.preventDefault();
-    container.addEventListener("contextmenu", blockContextMenu);
-
-    return () => {
-      container.removeEventListener("contextmenu", blockContextMenu);
-    };
-  }, [isMobileReader, loading, pages.length]);
+  }, [pauseBackgroundRender]);
 
   useEffect(() => {
     if (!loading && totalPages > 0) {
@@ -215,7 +152,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             manualGoToPage(p);
             setResumeMsg(`📖 Retomando en pág. ${p}`);
             setTimeout(() => setResumeMsg(""), 3000);
-          }, 400);
+          }, 500);
         }
       }
     }
@@ -242,8 +179,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       pdfDoc: any,
       pageNum: number,
       scale: number,
-      userMark: string,
-      skipWatermark: boolean
+      userMark: string
     ): Promise<string> {
       const page = await pdfDoc.getPage(pageNum);
       const viewport = page.getViewport({ scale });
@@ -257,22 +193,19 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
       await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
 
-      if (!skipWatermark) {
-        ctx.save();
-        const fontSize = Math.max(10, Math.floor(canvas.width / 28));
-        ctx.font = `bold ${fontSize}px sans-serif`;
-        ctx.fillStyle = "rgba(0, 0, 0, 0.04)";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate(-Math.PI / 4);
-        ctx.fillText("Consejero del Obrero - " + userMark, 0, 0);
-        ctx.restore();
-      }
+      ctx.save();
+      const fontSize = Math.max(10, Math.floor(canvas.width / 24));
+      ctx.font = `bold ${fontSize}px serif`;
+      ctx.fillStyle = "rgba(120, 120, 120, 0.08)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillText("Consejero del Obrero - " + userMark, 0, 0);
+      ctx.restore();
 
-      const quality = scale <= 1.0 ? 0.62 : scale <= 1.2 ? 0.68 : 0.78;
       const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob((b) => resolve(b), "image/jpeg", quality);
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.85);
       });
       if (!blob) throw new Error("No se pudo convertir la página");
 
@@ -291,17 +224,15 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         setTotalPages(0);
         setCurrentRender(0);
 
-        const mobile = detectMobileReader();
-        const renderScale = mobile ? 0.95 : 2.0;
+        const mobile = isMobileViewport();
+        const renderScale = getRenderScale();
 
         let pdfDoc: any;
         try {
-          // Streaming por URL — evita cargar todo el PDF en memoria (crítico en Android)
           pdfDoc = await pdfjsLib.getDocument({
             url: fileUrl,
             disableStream: false,
             disableAutoFetch: false,
-            useSystemFonts: true,
           }).promise;
         } catch {
           const res = await fetch(fileUrl, { cache: "force-cache" });
@@ -323,7 +254,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         const width = clamp(Math.floor(baseHeight * ratio), 320, 560);
         setBookDimensions({ width, height: baseHeight });
 
-        const userMark = auth.currentUser?.email || "Copia de Lectura";
+        const userMark = auth.currentUser?.email || "Copia Protegida";
         const imgs: (string | null)[] = new Array(numPages).fill(null);
 
         const initialCount = mobile
@@ -335,15 +266,9 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           if (!(await waitIfPaused())) return;
 
           setCurrentRender(i);
-          imgs[i - 1] = await renderSinglePage(
-            pdfDoc,
-            i,
-            renderScale,
-            userMark,
-            mobile
-          );
+          imgs[i - 1] = await renderSinglePage(pdfDoc, i, renderScale, userMark);
           setPages([...imgs]);
-          if (mobile) await yieldToMain(64);
+          if (mobile) await yieldToMain(48);
         }
 
         if (loop.cancelled) return;
@@ -362,23 +287,14 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           if (!(await waitIfPaused())) return;
 
           setCurrentRender(i);
-          imgs[i - 1] = await renderSinglePage(
-            pdfDoc,
-            i,
-            renderScale,
-            userMark,
-            mobile
-          );
+          imgs[i - 1] = await renderSinglePage(pdfDoc, i, renderScale, userMark);
 
           const shouldFlush =
             i === numPages || (i - initialCount) % batchSize === 0;
 
           if (shouldFlush) {
             setPages([...imgs]);
-            if (mobile) {
-              await yieldToMain(MOBILE_RENDER_DELAY_MS);
-              await idleYield();
-            }
+            if (mobile) await yieldToMain(MOBILE_RENDER_DELAY_MS);
           }
         }
 
@@ -386,7 +302,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
           setPages([...imgs]);
           setBackgroundRendering(false);
         }
-      } catch (e: any) {
+      } catch {
         if (loop.cancelled) return;
         setErrMsg("No se pudo cargar el documento.");
         setLoading(false);
@@ -417,15 +333,14 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         (entries) => {
           const visibleEntry = entries.find((entry) => entry.isIntersecting);
           if (visibleEntry) {
-            const index = parseInt(visibleEntry.target.id.replace("page-", ""), 10);
+            const index = parseInt(
+              visibleEntry.target.id.replace("page-", ""),
+              10
+            );
             if (!isNaN(index)) saveProgress(index + 1);
           }
         },
-        {
-          threshold: 0.2,
-          root: isMobileReader ? scrollContainerRef.current : null,
-          rootMargin: "0px",
-        }
+        { threshold: 0.25, root: null, rootMargin: "-10% 0px -10% 0px" }
       );
 
       visiblePages.forEach((_, idx) => {
@@ -435,22 +350,29 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     }
 
     return () => observer.current?.disconnect();
-  }, [viewMode, loading, visiblePageCount, visiblePages, saveProgress, isMobileReader]);
+  }, [viewMode, loading, visiblePageCount, visiblePages, saveProgress]);
 
   const progress = totalPages ? Math.round((currentRender / totalPages) * 100) : 0;
 
-  const themeStyles = useMemo(() => {
-    return {
+  const themeStyles = useMemo(
+    () => ({
       light: "bg-[#fdfdfd]",
       sepia: "bg-[#f4ecd8]",
       dark: "bg-[#0f0f0f]",
-    };
-  }, []);
+    }),
+    []
+  );
 
   const headerBg = useMemo(() => {
     if (theme === "dark") return "bg-black/80 text-gray-200";
     if (theme === "sepia") return "bg-[#f4ecd8]/90 text-amber-900";
     return "bg-white/90 text-gray-600";
+  }, [theme]);
+
+  const pageFilterStyle = useMemo(() => {
+    if (theme === "dark") return "invert(0.9) hue-rotate(180deg)";
+    if (theme === "sepia") return "sepia(0.3)";
+    return "none";
   }, [theme]);
 
   const handleGoToSubmit = (e: React.FormEvent) => {
@@ -459,226 +381,31 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     setTargetPage("");
   };
 
-  const onFlip = useCallback((e: any) => {
-    saveProgress(e.data + 1);
-  }, [saveProgress]);
+  const onFlip = useCallback(
+    (e: any) => {
+      saveProgress(e.data + 1);
+    },
+    [saveProgress]
+  );
 
   const FlipBookComponent: any = HTMLFlipBook;
-  const effectiveViewMode = isMobileReader ? "scroll" : viewMode;
   const loadedPagesReady = visiblePageCount > 0;
-
-  const pageFilterStyle =
-    theme === "dark" && !isMobileReader
-      ? "invert(0.92) hue-rotate(180deg) contrast(0.9)"
-      : theme === "sepia"
-      ? "sepia(0.25) contrast(1.05)"
-      : "none";
-
-  const renderScrollPages = (useMobileZoom = false) =>
-    visiblePages.map((src, idx) => (
-      <div
-        key={idx}
-        id={`page-${idx}`}
-        className={`flipbook-mobile-page w-full relative ${themeStyles[theme]} ${idx > 0 ? "mt-1" : ""}`}
-      >
-        {src && (
-          <img
-            src={src}
-            alt={`Página ${idx + 1}`}
-            className="flipbook-mobile-page-img h-auto block"
-            style={
-              useMobileZoom
-                ? {
-                    width: `${mobileZoom * 100}%`,
-                    maxWidth: "none",
-                  }
-                : { width: "100%", maxWidth: "100%" }
-            }
-            loading={idx < 2 ? "eager" : "lazy"}
-            decoding="async"
-            draggable={false}
-          />
-        )}
-        <div className="flipbook-mobile-page-num py-1 text-center text-[9px] text-gray-400 opacity-60">
-          {idx + 1}
-        </div>
-      </div>
-    ));
-
-  if (isMobileReader) {
-    return (
-      <div className="flipbook-mobile-shell flex flex-col h-full min-h-0 w-full">
-        {resumeMsg && (
-          <div className="fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] bg-black/80 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg pointer-events-none">
-            {resumeMsg}
-          </div>
-        )}
-
-        <div className="flipbook-mobile-toolbar shrink-0 z-30 px-2 py-2 border-b border-amber-100/80 bg-white/95 backdrop-blur-sm">
-          <div className="flex items-center justify-between gap-2 max-w-3xl mx-auto">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-600 truncate">
-              Pág. {currentPage}{totalPages > 0 ? ` / ${totalPages}` : ""}
-            </p>
-            <form onSubmit={handleGoToSubmit} className="flex items-center gap-1 shrink-0">
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder={currentPage.toString()}
-                aria-label="Ir a página"
-                className="w-12 min-h-[40px] px-1 text-xs text-center border border-gray-200 rounded-lg outline-none"
-                value={targetPage}
-                onChange={(e) => setTargetPage(e.target.value)}
-              />
-              <button type="submit" className="min-h-[40px] px-2 text-[10px] font-bold uppercase text-amber-700">
-                Ir
-              </button>
-            </form>
-          </div>
-
-          {isAndroid && (
-            <div className="flex items-center justify-center gap-2 mt-2 max-w-3xl mx-auto flex-wrap">
-              <button
-                type="button"
-                onClick={adjustMobileWidth}
-                className="min-h-[36px] px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-[9px] font-bold uppercase tracking-wider text-amber-800"
-              >
-                Ajustar ancho
-              </button>
-              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  onClick={zoomMobileOut}
-                  aria-label="Alejar"
-                  className="min-w-[40px] min-h-[36px] px-2 text-sm font-bold text-gray-700 bg-white"
-                >
-                  −
-                </button>
-                <span className="px-2 text-[9px] font-bold text-gray-500 min-w-[3rem] text-center">
-                  {Math.round(mobileZoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={zoomMobileIn}
-                  aria-label="Acercar"
-                  className="min-w-[40px] min-h-[36px] px-2 text-sm font-bold text-gray-700 bg-white"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          )}
-
-          <p className="text-center text-[9px] text-gray-500 mt-1.5">
-            {backgroundRendering
-              ? `Preparando páginas… ${currentRender}/${totalPages}`
-              : `Páginas cargadas ${visiblePageCount}/${totalPages}`}
-          </p>
-        </div>
-
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-16 px-4">
-            <div className="w-10 h-10 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-3" />
-            <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">
-              Cargando… {progress}%
-            </p>
-          </div>
-        )}
-
-        {errMsg && (
-          <div className="p-4 m-3 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">
-            ⚠️ {errMsg}
-          </div>
-        )}
-
-        {!loading && loadedPagesReady && (
-          <div
-            ref={scrollContainerRef}
-            className={`flipbook-mobile-scroll flex-1 min-h-0 pb-24 ${
-              mobileZoom > 1.01 ? "flipbook-mobile-scroll--zoomed" : ""
-            }`}
-          >
-            {renderScrollPages(isAndroid)}
-            {backgroundRendering && (
-              <div className="py-6 text-center text-[10px] text-gray-400 uppercase tracking-widest pointer-events-none">
-                Cargando más páginas…
-              </div>
-            )}
-          </div>
-        )}
-
-        <style jsx global>{`
-          .flipbook-mobile-shell {
-            width: 100%;
-            max-width: 100%;
-            height: 100%;
-            min-height: 0;
-          }
-
-          .flipbook-mobile-toolbar {
-            pointer-events: auto;
-            touch-action: manipulation;
-          }
-
-          .flipbook-mobile-scroll {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            touch-action: pan-y;
-            overscroll-behavior-y: contain;
-          }
-
-          .flipbook-mobile-scroll--zoomed {
-            overflow-x: auto;
-            touch-action: pan-x pan-y;
-          }
-
-          .flipbook-mobile-page,
-          .flipbook-mobile-page-img,
-          .flipbook-mobile-page-num {
-            pointer-events: none;
-            -webkit-user-select: none;
-            user-select: none;
-            -webkit-touch-callout: none;
-          }
-
-          .documento-mobile-reader {
-            display: flex;
-            flex-direction: column;
-            height: 100dvh;
-            max-height: 100dvh;
-            overflow: hidden;
-          }
-
-          .documento-mobile-reader-body {
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-          }
-        `}</style>
-      </div>
-    );
-  }
 
   return (
     <div
-      className={`w-full flex flex-col items-center gap-3 md:gap-4 py-2 md:py-4 transition-colors duration-500 min-h-0 overflow-x-hidden md:min-h-screen ${
+      className={`flipbook-viewer w-full flex flex-col items-center gap-3 md:gap-4 py-2 md:py-4 transition-colors duration-500 min-h-0 overflow-x-hidden ${
         theme === "dark" ? "bg-[#121212]" : "bg-gray-50"
       }`}
       onContextMenu={(e) => e.preventDefault()}
     >
       {resumeMsg && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] bg-black/80 text-white px-4 sm:px-6 py-2 rounded-full text-xs font-bold shadow-xl backdrop-blur-md flex items-center gap-2 pointer-events-auto">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] bg-black/80 text-white px-4 sm:px-6 py-2 rounded-full text-xs font-bold shadow-xl backdrop-blur-md flex items-center gap-2 pointer-events-none">
           <span className="truncate">{resumeMsg}</span>
-          <button type="button" onClick={() => setResumeMsg("")} className="ml-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-gray-400 hover:text-white flex-shrink-0" aria-label="Cerrar aviso">✕</button>
         </div>
       )}
 
       <div
-        className={`sticky top-4 z-40 w-[calc(100%-1rem)] max-w-4xl mx-auto px-3 py-3 md:px-4 md:py-2 backdrop-blur-xl border rounded-full shadow-lg transition-colors duration-300 ${
+        className={`flipbook-toolbar sticky top-2 sm:top-4 z-40 w-[calc(100%-0.5rem)] sm:w-[calc(100%-1rem)] max-w-4xl mx-auto px-3 py-3 md:px-4 md:py-2 backdrop-blur-xl border rounded-full shadow-lg transition-colors duration-300 ${
           theme === "dark" ? "bg-gray-900/90 border-gray-700" : "bg-white/95 border-amber-100"
         }`}
       >
@@ -691,7 +418,11 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             >
               {viewMode === "flip" ? "📱 Modo Ebook" : "📖 Modo Libro 3D"}
             </button>
-            <div className={`flex gap-1.5 p-1.5 rounded-full ${theme === "dark" ? "bg-gray-800" : "bg-gray-100"}`}>
+            <div
+              className={`flex gap-1.5 p-1.5 rounded-full ${
+                theme === "dark" ? "bg-gray-800" : "bg-gray-100"
+              }`}
+            >
               {(["light", "sepia", "dark"] as Theme[]).map((t) => (
                 <button
                   key={t}
@@ -705,14 +436,53 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             </div>
           </div>
           <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap border-t border-gray-200/60 pt-3 sm:border-t-0 sm:pt-0">
-            <div className={`flex items-center border rounded-full ${theme === "dark" ? "bg-black border-gray-700 text-white" : "bg-white text-black border-gray-200"}`}>
-              <button type="button" onClick={() => setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, maxZoom))} className="px-3 font-bold">–</button>
-              <span className="text-[10px] w-12 text-center font-black">{Math.round(zoom * 100)}%</span>
-              <button type="button" onClick={() => setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.5, maxZoom))} className="px-3 font-bold">+</button>
+            <div
+              className={`flex items-center border rounded-full ${
+                theme === "dark"
+                  ? "bg-black border-gray-700 text-white"
+                  : "bg-white text-black border-gray-200"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, maxZoom))
+                }
+                className="px-3 min-h-[44px] font-bold"
+              >
+                –
+              </button>
+              <span className="text-[10px] w-12 text-center font-black">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.5, maxZoom))
+                }
+                className="px-3 min-h-[44px] font-bold"
+              >
+                +
+              </button>
             </div>
-            <form onSubmit={handleGoToSubmit} className="flex items-center gap-2 sm:border-l border-gray-200 pl-0 sm:pl-3">
-              <input type="number" inputMode="numeric" placeholder={currentPage.toString()} className="w-14 min-h-[44px] md:min-h-0 md:w-12 px-2 text-xs text-center border rounded-lg outline-none" value={targetPage} onChange={(e) => setTargetPage(e.target.value)} />
-              <button type="submit" className="min-h-[44px] px-4 text-xs font-bold uppercase text-amber-600">Ir</button>
+            <form
+              onSubmit={handleGoToSubmit}
+              className="flex items-center gap-2 sm:border-l border-gray-200 pl-0 sm:pl-3"
+            >
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder={currentPage.toString()}
+                className="w-14 min-h-[44px] md:min-h-0 md:w-12 px-2 text-xs text-center border rounded-lg outline-none"
+                value={targetPage}
+                onChange={(e) => setTargetPage(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="min-h-[44px] px-4 text-xs font-bold uppercase text-amber-600"
+              >
+                Ir
+              </button>
             </form>
           </div>
         </div>
@@ -721,10 +491,12 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       {loading && (
         <div className="flex flex-col items-center justify-center py-16 md:py-32 animate-pulse px-4">
           <div className="relative w-16 h-16 mb-4">
-            <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin"></div>
+            <div className="absolute inset-0 border-4 border-gray-200 rounded-full" />
+            <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin" />
           </div>
-          <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">Preparando… {progress}%</p>
+          <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">
+            Preparando… {progress}%
+          </p>
         </div>
       )}
 
@@ -734,9 +506,20 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         </div>
       )}
 
-      {effectiveViewMode === "flip" && !loading && loadedPagesReady && (
-        <div className={`w-full max-w-6xl border rounded-[2.5rem] p-4 sm:p-10 shadow-inner ${themeStyles[theme]} ${theme === "dark" ? "border-gray-800" : "border-gray-100"}`}>
-          <div className="mx-auto max-w-full overflow-x-hidden" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+      {viewMode === "flip" && !loading && loadedPagesReady && (
+        <div
+          className={`w-full max-w-6xl mx-auto border rounded-[2rem] md:rounded-[2.5rem] p-3 sm:p-10 shadow-inner ${themeStyles[theme]} ${
+            theme === "dark" ? "border-gray-800" : "border-gray-100"
+          }`}
+        >
+          <div
+            className="mx-auto max-w-full overflow-x-hidden"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: "top center",
+              transition: "transform 180ms ease-out",
+            }}
+          >
             <FlipBookComponent
               ref={bookRef}
               width={bookDimensions.width}
@@ -748,8 +531,8 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               maxHeight={820}
               drawShadow={true}
               showCover={true}
-              mobileScrollSupport={false}
-              className="book-main shadow-2xl"
+              mobileScrollSupport={true}
+              className="book-main shadow-2xl mx-auto"
               style={{ margin: "0 auto" }}
               startPage={0}
               onFlip={onFlip}
@@ -764,9 +547,18 @@ export default function FlipbookViewer({ fileUrl }: Props) {
             >
               {visiblePages.map((src, idx) =>
                 src ? (
-                  <div key={idx} className="bg-white border-l border-gray-50 overflow-hidden relative">
+                  <div
+                    key={idx}
+                    className="bg-white border-l border-gray-50 overflow-hidden relative"
+                  >
                     <div className="w-full h-full p-2 flex items-center justify-center">
-                      <img src={src} alt={`Pág ${idx + 1}`} className="max-w-full max-h-full object-contain" draggable={false} style={{ filter: pageFilterStyle }} />
+                      <img
+                        src={src}
+                        alt={`Pág ${idx + 1}`}
+                        className="max-w-full max-h-full object-contain mx-auto"
+                        draggable={false}
+                        style={{ filter: pageFilterStyle }}
+                      />
                     </div>
                   </div>
                 ) : null
@@ -776,24 +568,77 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         </div>
       )}
 
-      {effectiveViewMode === "scroll" && !loading && loadedPagesReady && (
-        <div className="w-full max-w-3xl px-0 flex flex-col gap-0 pb-24 md:pb-32 overflow-x-hidden">
-          <div className={`text-center py-2.5 text-[10px] font-bold uppercase tracking-widest ${headerBg} border-b border-gray-100/10`}>
-            Vista Continua • Pág. {currentPage}{totalPages > 0 ? ` / ${totalPages}` : ""}
+      {viewMode === "scroll" && !loading && loadedPagesReady && (
+        <div className="flipbook-scroll w-full max-w-3xl mx-auto px-0 flex flex-col gap-0 pb-24 md:pb-32">
+          <div
+            className={`text-center py-2.5 text-[10px] font-bold uppercase tracking-widest sticky top-[4.5rem] sm:top-20 z-20 ${headerBg} backdrop-blur-sm border-b border-gray-100/10`}
+          >
+            Vista Continua • Pág. {currentPage}
+            {totalPages > 0 ? ` / ${totalPages}` : ""}
             {backgroundRendering && (
               <span className="block mt-1 text-[9px] font-normal normal-case text-amber-600">
                 Preparando páginas… {currentRender}/{totalPages}
               </span>
             )}
           </div>
-          <div className="w-full max-w-full overflow-x-hidden">{renderScrollPages(false)}</div>
+
+          <div
+            className="flipbook-scroll-pages w-full mx-auto origin-top transition-transform duration-200 ease-out"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: "top center",
+            }}
+          >
+            {visiblePages.map((src, idx) => (
+              <div
+                key={idx}
+                id={`page-${idx}`}
+                className={`w-full relative shadow-sm mx-auto ${themeStyles[theme]} ${
+                  idx > 0 ? "mt-2" : "mt-0"
+                }`}
+              >
+                {src && (
+                  <img
+                    src={src}
+                    alt={`Página ${idx + 1}`}
+                    className="w-full h-auto block mx-auto"
+                    loading={idx < 3 ? "eager" : "lazy"}
+                    decoding="async"
+                    draggable={false}
+                    style={{ filter: pageFilterStyle }}
+                  />
+                )}
+                <div className="py-1.5 text-center text-[9px] text-gray-400 opacity-60 pointer-events-none">
+                  {idx + 1}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       <style jsx global>{`
-        .book-main { background: transparent; }
-        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        html { scroll-behavior: smooth; }
+        .book-main {
+          background: transparent;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+        .flipbook-viewer {
+          touch-action: auto;
+        }
+        .flipbook-scroll,
+        .flipbook-scroll-pages {
+          touch-action: auto;
+        }
+        .flipbook-scroll-pages img {
+          -webkit-user-drag: none;
+          user-select: none;
+          -webkit-touch-callout: none;
+        }
+        input[type="number"]::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
       `}</style>
     </div>
   );
