@@ -131,6 +131,12 @@ const es = {
     loadErrorDetail: "No se pudo cargar el documento.",
     resumePage: "📖 Retomando en pág.",
     preparingPages: "Preparando páginas…",
+    preparingReading: "Preparando lectura…",
+    preparingReadingHint:
+      "Estamos cargando las primeras páginas para una lectura más fluida.",
+    pagesReady: "Páginas listas",
+    preparingRemaining: "Preparando páginas restantes…",
+    preparingPage: "Preparando página…",
     protectedContent:
       "Contenido protegido por derechos de autor - El Consejo del Obrero",
   },

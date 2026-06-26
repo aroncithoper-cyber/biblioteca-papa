@@ -13,10 +13,13 @@ type Props = { fileUrl: string };
 type Theme = "light" | "sepia" | "dark";
 type ViewMode = "flip" | "scroll";
 
-const MOBILE_INITIAL_PAGES = 2;
+const MOBILE_BOOTSTRAP_PAGES = 8;
+const DESKTOP_BOOTSTRAP_PAGES = 12;
 const MOBILE_BATCH_SIZE = 2;
-const MOBILE_RENDER_DELAY_MS = 120;
 const DESKTOP_BATCH_SIZE = 4;
+const MOBILE_BATCH_DELAY_MS = 120;
+const DESKTOP_BATCH_DELAY_MS = 80;
+const FLIP_MIN_PAGES = 2;
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -25,6 +28,11 @@ function clamp(n: number, min: number, max: number) {
 function isMobileViewport(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(max-width: 767px)").matches;
+}
+
+function getBootstrapTarget(numPages: number): number {
+  const target = isMobileViewport() ? MOBILE_BOOTSTRAP_PAGES : DESKTOP_BOOTSTRAP_PAGES;
+  return Math.min(target, numPages);
 }
 
 function getRenderScale(): number {
@@ -40,6 +48,17 @@ function yieldToMain(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function yieldToIdle(mobile: boolean): Promise<void> {
+  return new Promise((resolve) => {
+    const timeout = mobile ? MOBILE_BATCH_DELAY_MS : DESKTOP_BATCH_DELAY_MS;
+    if (typeof requestIdleCallback !== "undefined") {
+      requestIdleCallback(() => resolve(), { timeout: timeout + 40 });
+    } else {
+      setTimeout(resolve, timeout);
+    }
+  });
+}
+
 function getVisiblePageCount(pages: (string | null)[]): number {
   if (pages.length === 0) return 0;
   const firstGap = pages.findIndex((p) => !p);
@@ -47,24 +66,37 @@ function getVisiblePageCount(pages: (string | null)[]): number {
   return firstGap;
 }
 
+function countRenderedPages(pages: (string | null)[]): number {
+  return pages.filter(Boolean).length;
+}
+
 export default function FlipbookViewer({ fileUrl }: Props) {
   const { t } = useLanguage();
   const bookRef = useRef<any>(null);
   const observer = useRef<IntersectionObserver | null>(null);
   const pdfDocRef = useRef<any>(null);
+  const pagesRef = useRef<(string | null)[]>([]);
   const blobUrlsRef = useRef<string[]>([]);
   const pauseRenderUntilRef = useRef(0);
   const renderLoopRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+  const priorityPageRef = useRef<number | null>(null);
+  const priorityWaitRef = useRef<{ page: number; resolve: () => void } | null>(null);
+  const renderPageFnRef = useRef<
+    ((pageNum: number) => Promise<string>) | null
+  >(null);
 
   const [pages, setPages] = useState<(string | null)[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [readyToRead, setReadyToRead] = useState(false);
   const [totalPages, setTotalPages] = useState(0);
-  const [currentRender, setCurrentRender] = useState(0);
+  const [bootstrapReady, setBootstrapReady] = useState(0);
+  const [bootstrapTarget, setBootstrapTarget] = useState(0);
+  const [renderedCount, setRenderedCount] = useState(0);
   const [backgroundRendering, setBackgroundRendering] = useState(false);
   const [errMsg, setErrMsg] = useState("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [resumeMsg, setResumeMsg] = useState("");
+  const [pagePrepMsg, setPagePrepMsg] = useState("");
 
   const [zoom, setZoom] = useState(1);
   const [theme, setTheme] = useState<Theme>("light");
@@ -88,14 +120,34 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     return !renderLoopRef.current.cancelled;
   }, []);
 
-  const revokeBlobUrls = useCallback(() => {
-    blobUrlsRef.current.forEach((url) => {
-      try {
-        URL.revokeObjectURL(url);
-      } catch {}
-    });
-    blobUrlsRef.current = [];
+  const flushPages = useCallback((imgs: (string | null)[]) => {
+    pagesRef.current = imgs;
+    setPages([...imgs]);
+    setRenderedCount(countRenderedPages(imgs));
   }, []);
+
+  const resolvePriorityWait = useCallback((pageNum: number) => {
+    if (priorityWaitRef.current?.page === pageNum) {
+      priorityWaitRef.current.resolve();
+      priorityWaitRef.current = null;
+    }
+    if (priorityPageRef.current === pageNum) {
+      priorityPageRef.current = null;
+    }
+  }, []);
+
+  const ensurePageRendered = useCallback(async (pageNum: number) => {
+    if (pagesRef.current[pageNum - 1]) return;
+
+    setPagePrepMsg(t.pdf.preparingPage);
+    priorityPageRef.current = pageNum;
+
+    await new Promise<void>((resolve) => {
+      priorityWaitRef.current = { page: pageNum, resolve };
+    });
+
+    setPagePrepMsg("");
+  }, [t.pdf.preparingPage]);
 
   const saveProgress = useCallback(
     (pageNum: number) => {
@@ -145,20 +197,30 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   }, [pauseBackgroundRender]);
 
   useEffect(() => {
-    if (!loading && totalPages > 0) {
+    if (readyToRead && totalPages > 0) {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const p = parseInt(saved, 10);
         if (p > 1 && p <= totalPages) {
-          setTimeout(() => {
+          setTimeout(async () => {
+            if (!pagesRef.current[p - 1]) {
+              await ensurePageRendered(p);
+            }
             manualGoToPage(p);
             setResumeMsg(`${t.pdf.resumePage} ${p}`);
             setTimeout(() => setResumeMsg(""), 3000);
-          }, 500);
+          }, 400);
         }
       }
     }
-  }, [loading, totalPages, storageKey, manualGoToPage, t.pdf.resumePage]);
+  }, [
+    readyToRead,
+    totalPages,
+    storageKey,
+    manualGoToPage,
+    ensurePageRendered,
+    t.pdf.resumePage,
+  ]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -172,6 +234,15 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     return () =>
       window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
   }, [t.pdf.protectedContent]);
+
+  const revokeBlobUrls = useCallback(() => {
+    blobUrlsRef.current.forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    });
+    blobUrlsRef.current = [];
+  }, []);
 
   useEffect(() => {
     renderLoopRef.current.cancelled = false;
@@ -216,15 +287,81 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       return objectUrl;
     }
 
+    async function renderRemainingPages(
+      pdfDoc: any,
+      imgs: (string | null)[],
+      numPages: number,
+      renderScale: number,
+      userMark: string,
+      mobile: boolean,
+      batchSize: number,
+      startAfter: number
+    ) {
+      const renderPage = async (pageNum: number) => {
+        if (loop.cancelled || imgs[pageNum - 1]) return;
+        if (!(await waitIfPaused())) return;
+        imgs[pageNum - 1] = await renderSinglePage(
+          pdfDoc,
+          pageNum,
+          renderScale,
+          userMark
+        );
+        flushPages(imgs);
+        resolvePriorityWait(pageNum);
+      };
+
+      let cursor = startAfter + 1;
+
+      while (cursor <= numPages && !loop.cancelled) {
+        if (priorityPageRef.current) {
+          const pp = priorityPageRef.current;
+          if (!imgs[pp - 1]) {
+            await renderPage(pp);
+          } else {
+            resolvePriorityWait(pp);
+          }
+          await yieldToIdle(mobile);
+          continue;
+        }
+
+        if (!(await waitIfPaused())) return;
+
+        while (cursor <= numPages && imgs[cursor - 1]) cursor++;
+        if (cursor > numPages) break;
+
+        const batchEnd = Math.min(cursor + batchSize - 1, numPages);
+        for (let p = cursor; p <= batchEnd; p++) {
+          if (loop.cancelled) return;
+          if (priorityPageRef.current) break;
+          if (!(await waitIfPaused())) return;
+          if (!imgs[p - 1]) {
+            await renderPage(p);
+          }
+        }
+
+        cursor = batchEnd + 1;
+        await yieldToIdle(mobile);
+      }
+
+      if (!loop.cancelled) {
+        setBackgroundRendering(false);
+      }
+    }
+
     async function renderPdf() {
       try {
         revokeBlobUrls();
         setErrMsg("");
-        setLoading(true);
+        setReadyToRead(false);
         setBackgroundRendering(false);
         setPages([]);
+        pagesRef.current = [];
         setTotalPages(0);
-        setCurrentRender(0);
+        setBootstrapReady(0);
+        setBootstrapTarget(0);
+        setRenderedCount(0);
+        priorityPageRef.current = null;
+        priorityWaitRef.current = null;
 
         const mobile = isMobileViewport();
         const renderScale = getRenderScale();
@@ -247,7 +384,9 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         if (loop.cancelled) return;
 
         const numPages = pdfDoc.numPages;
+        const bootTarget = getBootstrapTarget(numPages);
         setTotalPages(numPages);
+        setBootstrapTarget(bootTarget);
 
         const firstPage = await pdfDoc.getPage(1);
         const vp1 = firstPage.getViewport({ scale: 1 });
@@ -259,55 +398,42 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         const userMark = auth.currentUser?.email || "Copia Protegida";
         const imgs: (string | null)[] = new Array(numPages).fill(null);
 
-        const initialCount = mobile
-          ? Math.min(MOBILE_INITIAL_PAGES, numPages)
-          : Math.min(DESKTOP_BATCH_SIZE, numPages);
+        const boundRender = (pageNum: number) =>
+          renderSinglePage(pdfDoc, pageNum, renderScale, userMark);
+        renderPageFnRef.current = boundRender;
 
-        for (let i = 1; i <= initialCount; i++) {
+        for (let i = 1; i <= bootTarget; i++) {
           if (loop.cancelled) return;
           if (!(await waitIfPaused())) return;
 
-          setCurrentRender(i);
-          imgs[i - 1] = await renderSinglePage(pdfDoc, i, renderScale, userMark);
-          setPages([...imgs]);
-          if (mobile) await yieldToMain(48);
+          setBootstrapReady(i - 1);
+          imgs[i - 1] = await boundRender(i);
+          setBootstrapReady(i);
+          if (mobile) await yieldToIdle(mobile);
         }
 
         if (loop.cancelled) return;
-        setLoading(false);
 
-        if (initialCount >= numPages) {
-          setBackgroundRendering(false);
-          return;
-        }
+        flushPages(imgs);
+        setReadyToRead(true);
 
-        setBackgroundRendering(true);
-        const batchSize = mobile ? MOBILE_BATCH_SIZE : DESKTOP_BATCH_SIZE;
-
-        for (let i = initialCount + 1; i <= numPages; i++) {
-          if (loop.cancelled) return;
-          if (!(await waitIfPaused())) return;
-
-          setCurrentRender(i);
-          imgs[i - 1] = await renderSinglePage(pdfDoc, i, renderScale, userMark);
-
-          const shouldFlush =
-            i === numPages || (i - initialCount) % batchSize === 0;
-
-          if (shouldFlush) {
-            setPages([...imgs]);
-            if (mobile) await yieldToMain(MOBILE_RENDER_DELAY_MS);
-          }
-        }
-
-        if (!loop.cancelled) {
-          setPages([...imgs]);
-          setBackgroundRendering(false);
+        if (bootTarget < numPages) {
+          setBackgroundRendering(true);
+          void renderRemainingPages(
+            pdfDoc,
+            imgs,
+            numPages,
+            renderScale,
+            userMark,
+            mobile,
+            mobile ? MOBILE_BATCH_SIZE : DESKTOP_BATCH_SIZE,
+            bootTarget
+          );
         }
       } catch {
         if (loop.cancelled) return;
         setErrMsg(t.pdf.loadErrorDetail);
-        setLoading(false);
+        setReadyToRead(false);
         setBackgroundRendering(false);
       }
     }
@@ -316,19 +442,33 @@ export default function FlipbookViewer({ fileUrl }: Props) {
 
     return () => {
       loop.cancelled = true;
+      renderPageFnRef.current = null;
+      priorityWaitRef.current?.resolve();
+      priorityWaitRef.current = null;
       try {
         pdfDocRef.current?.destroy?.();
       } catch {}
       pdfDocRef.current = null;
       revokeBlobUrls();
     };
-  }, [fileUrl, revokeBlobUrls, waitIfPaused]);
+  }, [
+    fileUrl,
+    revokeBlobUrls,
+    waitIfPaused,
+    flushPages,
+    resolvePriorityWait,
+    t.pdf.loadError,
+    t.pdf.loadErrorDetail,
+  ]);
 
   const visiblePageCount = getVisiblePageCount(pages);
   const visiblePages = pages.slice(0, visiblePageCount);
 
+  const flipPagesReady =
+    visiblePageCount >= Math.min(FLIP_MIN_PAGES, totalPages || FLIP_MIN_PAGES);
+
   useEffect(() => {
-    if (viewMode === "scroll" && !loading && visiblePageCount > 0) {
+    if (viewMode === "scroll" && readyToRead && visiblePageCount > 0) {
       if (observer.current) observer.current.disconnect();
 
       observer.current = new IntersectionObserver(
@@ -352,9 +492,12 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     }
 
     return () => observer.current?.disconnect();
-  }, [viewMode, loading, visiblePageCount, visiblePages, saveProgress]);
+  }, [viewMode, readyToRead, visiblePageCount, visiblePages, saveProgress]);
 
-  const progress = totalPages ? Math.round((currentRender / totalPages) * 100) : 0;
+  const bootstrapProgress =
+    bootstrapTarget > 0
+      ? Math.round((bootstrapReady / bootstrapTarget) * 100)
+      : 0;
 
   const themeStyles = useMemo(
     () => ({
@@ -377,9 +520,17 @@ export default function FlipbookViewer({ fileUrl }: Props) {
     return "none";
   }, [theme]);
 
-  const handleGoToSubmit = (e: React.FormEvent) => {
+  const handleGoToSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    manualGoToPage(parseInt(targetPage, 10));
+    const p = parseInt(targetPage, 10);
+    if (!Number.isFinite(p) || p < 1 || p > totalPages) return;
+
+    if (!pagesRef.current[p - 1]) {
+      pauseBackgroundRender(3000);
+      await ensurePageRendered(p);
+    }
+
+    manualGoToPage(p);
     setTargetPage("");
   };
 
@@ -391,7 +542,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
   );
 
   const FlipBookComponent: any = HTMLFlipBook;
-  const loadedPagesReady = visiblePageCount > 0;
+  const showReader = readyToRead && visiblePageCount > 0;
 
   return (
     <div
@@ -400,124 +551,150 @@ export default function FlipbookViewer({ fileUrl }: Props) {
       }`}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {resumeMsg && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] bg-black/80 text-white px-4 sm:px-6 py-2 rounded-full text-xs font-bold shadow-xl backdrop-blur-md flex items-center gap-2 pointer-events-none">
-          <span className="truncate">{resumeMsg}</span>
+      {(resumeMsg || pagePrepMsg) && (
+        <div className="fixed top-20 left-1/2 z-[60] max-w-[90vw] -translate-x-1/2 rounded-full bg-black/80 px-4 py-2 text-xs font-bold text-white shadow-xl backdrop-blur-md sm:px-6 pointer-events-none">
+          <span className="truncate">{pagePrepMsg || resumeMsg}</span>
         </div>
       )}
 
-      <div
-        className={`flipbook-toolbar sticky top-2 sm:top-4 z-40 w-[calc(100%-0.5rem)] sm:w-[calc(100%-1rem)] max-w-4xl mx-auto px-3 py-3 md:px-4 md:py-2 backdrop-blur-xl border rounded-full shadow-lg transition-colors duration-300 ${
-          theme === "dark" ? "bg-gray-900/90 border-gray-700" : "bg-white/95 border-amber-100"
-        }`}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
-          <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setViewMode(viewMode === "flip" ? "scroll" : "flip")}
-              className="min-h-[44px] flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-full text-[10px] font-bold uppercase hover:shadow-lg transition-all active:scale-95"
-            >
-              {viewMode === "flip" ? `📱 ${t.pdf.ebookMode}` : `📖 ${t.pdf.flipMode}`}
-            </button>
-            <div
-              className={`flex gap-1.5 p-1.5 rounded-full ${
-                theme === "dark" ? "bg-gray-800" : "bg-gray-100"
-              }`}
-            >
-              {(["light", "sepia", "dark"] as Theme[]).map((themeKey) => (
-                <button
-                  key={themeKey}
-                  type="button"
-                  onClick={() => setTheme(themeKey)}
-                  aria-label={
-                    themeKey === "light"
-                      ? t.pdf.themeLight
-                      : themeKey === "sepia"
-                      ? t.pdf.themeSepia
-                      : t.pdf.themeDark
-                  }
-                  className={`min-w-[44px] min-h-[44px] md:min-w-7 md:min-h-7 md:w-7 md:h-7 rounded-full border ${
-                    theme === themeKey ? "ring-2 ring-amber-500" : "opacity-60"
-                  } ${themeKey === "light" ? "bg-white" : themeKey === "sepia" ? "bg-[#f4ecd8]" : "bg-[#2c2c2c]"}`}
+      {backgroundRendering && readyToRead && (
+        <div
+          className="fixed bottom-4 left-1/2 z-[55] max-w-[92vw] -translate-x-1/2 rounded-full border border-amber-200/80 bg-white/95 px-4 py-2 text-[10px] font-medium text-amber-800 shadow-lg backdrop-blur-md pointer-events-none sm:bottom-6"
+          role="status"
+          aria-live="polite"
+        >
+          {t.pdf.preparingRemaining} {renderedCount}/{totalPages}
+        </div>
+      )}
+
+      {!readyToRead && !errMsg && (
+        <div className="flex w-full max-w-md flex-col items-center justify-center px-6 py-16 md:py-24">
+          <div className="w-full rounded-[2rem] border border-amber-100 bg-[#fcfaf7] p-8 shadow-inner sm:p-10">
+            <p className="text-center font-serif text-lg font-bold tracking-tight text-gray-900 sm:text-xl">
+              {t.pdf.preparingReading}
+            </p>
+            <p className="mt-3 text-center text-xs leading-relaxed text-gray-500 sm:text-sm">
+              {t.pdf.preparingReadingHint}
+            </p>
+
+            <div className="mt-8">
+              <div className="h-2 overflow-hidden rounded-full bg-amber-100/80">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-700 transition-all duration-300 ease-out"
+                  style={{ width: `${bootstrapTarget ? bootstrapProgress : 8}%` }}
                 />
-              ))}
+              </div>
+              <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-700">
+                {t.pdf.pagesReady}: {bootstrapReady}
+                {bootstrapTarget > 0 ? ` / ${bootstrapTarget}` : ""}
+              </p>
             </div>
-          </div>
-          <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap border-t border-gray-200/60 pt-3 sm:border-t-0 sm:pt-0">
-            <div
-              className={`flex items-center border rounded-full ${
-                theme === "dark"
-                  ? "bg-black border-gray-700 text-white"
-                  : "bg-white text-black border-gray-200"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, maxZoom))
-                }
-                className="px-3 min-h-[44px] font-bold"
-              >
-                –
-              </button>
-              <span className="text-[10px] w-12 text-center font-black">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.5, maxZoom))
-                }
-                className="px-3 min-h-[44px] font-bold"
-              >
-                +
-              </button>
-            </div>
-            <form
-              onSubmit={handleGoToSubmit}
-              className="flex items-center gap-2 sm:border-l border-gray-200 pl-0 sm:pl-3"
-            >
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder={currentPage.toString()}
-                className="w-14 min-h-[44px] md:min-h-0 md:w-12 px-2 text-xs text-center border rounded-lg outline-none"
-                value={targetPage}
-                onChange={(e) => setTargetPage(e.target.value)}
-              />
-              <button
-                type="submit"
-                className="min-h-[44px] px-4 text-xs font-bold uppercase text-amber-600"
-              >
-                {t.pdf.go}
-              </button>
-            </form>
           </div>
         </div>
-      </div>
+      )}
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-16 md:py-32 animate-pulse px-4">
-          <div className="relative w-16 h-16 mb-4">
-            <div className="absolute inset-0 border-4 border-gray-200 rounded-full" />
-            <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin" />
+      {readyToRead && (
+        <div
+          className={`flipbook-toolbar sticky top-2 z-40 mx-auto w-[calc(100%-0.5rem)] max-w-4xl rounded-full border px-3 py-3 shadow-lg backdrop-blur-xl transition-colors duration-300 sm:top-4 sm:w-[calc(100%-1rem)] md:px-4 md:py-2 ${
+            theme === "dark" ? "border-gray-700 bg-gray-900/90" : "border-amber-100 bg-white/95"
+          }`}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode(viewMode === "flip" ? "scroll" : "flip")}
+                className="flex min-h-[44px] items-center gap-2 rounded-full bg-gradient-to-r from-amber-600 to-amber-700 px-4 py-2.5 text-[10px] font-bold uppercase text-white transition-all hover:shadow-lg active:scale-95"
+              >
+                {viewMode === "flip" ? `📱 ${t.pdf.ebookMode}` : `📖 ${t.pdf.flipMode}`}
+              </button>
+              <div
+                className={`flex gap-1.5 rounded-full p-1.5 ${
+                  theme === "dark" ? "bg-gray-800" : "bg-gray-100"
+                }`}
+              >
+                {(["light", "sepia", "dark"] as Theme[]).map((themeKey) => (
+                  <button
+                    key={themeKey}
+                    type="button"
+                    onClick={() => setTheme(themeKey)}
+                    aria-label={
+                      themeKey === "light"
+                        ? t.pdf.themeLight
+                        : themeKey === "sepia"
+                        ? t.pdf.themeSepia
+                        : t.pdf.themeDark
+                    }
+                    className={`min-h-[44px] min-w-[44px] rounded-full border md:min-h-7 md:min-w-7 md:h-7 md:w-7 ${
+                      theme === themeKey ? "ring-2 ring-amber-500" : "opacity-60"
+                    } ${themeKey === "light" ? "bg-white" : themeKey === "sepia" ? "bg-[#f4ecd8]" : "bg-[#2c2c2c]"}`}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-gray-200/60 pt-3 sm:gap-3 sm:border-t-0 sm:pt-0">
+              <div
+                className={`flex items-center rounded-full border ${
+                  theme === "dark"
+                    ? "border-gray-700 bg-black text-white"
+                    : "border-gray-200 bg-white text-black"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setZoom((z) => clamp(+((z - 0.1).toFixed(2)), 0.5, maxZoom))
+                  }
+                  className="min-h-[44px] px-3 font-bold"
+                >
+                  –
+                </button>
+                <span className="w-12 text-center text-[10px] font-black">
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setZoom((z) => clamp(+((z + 0.1).toFixed(2)), 0.5, maxZoom))
+                  }
+                  className="min-h-[44px] px-3 font-bold"
+                >
+                  +
+                </button>
+              </div>
+              <form
+                onSubmit={handleGoToSubmit}
+                className="flex items-center gap-2 sm:border-l sm:border-gray-200 sm:pl-3"
+              >
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder={currentPage.toString()}
+                  className="min-h-[44px] w-14 rounded-lg border px-2 text-center text-xs outline-none md:min-h-0 md:w-12"
+                  value={targetPage}
+                  onChange={(e) => setTargetPage(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="min-h-[44px] px-4 text-xs font-bold uppercase text-amber-600"
+                >
+                  {t.pdf.go}
+                </button>
+              </form>
+            </div>
           </div>
-          <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">
-            {t.pdf.preparing} {progress}%
-          </p>
         </div>
       )}
 
       {errMsg && (
-        <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm font-medium shadow-sm">
+        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-medium text-red-600 shadow-sm">
           ⚠️ {errMsg}
         </div>
       )}
 
-      {viewMode === "flip" && !loading && loadedPagesReady && (
+      {viewMode === "flip" && showReader && flipPagesReady && (
         <div
-          className={`w-full max-w-6xl mx-auto border rounded-[2rem] md:rounded-[2.5rem] p-3 sm:p-10 shadow-inner ${themeStyles[theme]} ${
+          className={`mx-auto w-full max-w-6xl rounded-[2rem] border p-3 shadow-inner sm:p-10 md:rounded-[2.5rem] ${themeStyles[theme]} ${
             theme === "dark" ? "border-gray-800" : "border-gray-100"
           }`}
         >
@@ -541,7 +718,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               drawShadow={true}
               showCover={true}
               mobileScrollSupport={true}
-              className="book-main shadow-2xl mx-auto"
+              className="book-main mx-auto shadow-2xl"
               style={{ margin: "0 auto" }}
               startPage={0}
               onFlip={onFlip}
@@ -558,13 +735,13 @@ export default function FlipbookViewer({ fileUrl }: Props) {
                 src ? (
                   <div
                     key={idx}
-                    className="bg-white border-l border-gray-50 overflow-hidden relative"
+                    className="relative overflow-hidden border-l border-gray-50 bg-white"
                   >
-                    <div className="w-full h-full p-2 flex items-center justify-center">
+                    <div className="flex h-full w-full items-center justify-center p-2">
                       <img
                         src={src}
                         alt={`Pág ${idx + 1}`}
-                        className="max-w-full max-h-full object-contain mx-auto"
+                        className="mx-auto max-h-full max-w-full object-contain"
                         draggable={false}
                         style={{ filter: pageFilterStyle }}
                       />
@@ -577,22 +754,17 @@ export default function FlipbookViewer({ fileUrl }: Props) {
         </div>
       )}
 
-      {viewMode === "scroll" && !loading && loadedPagesReady && (
-        <div className="flipbook-scroll w-full max-w-3xl mx-auto px-0 flex flex-col gap-0 pb-24 md:pb-32">
+      {viewMode === "scroll" && showReader && (
+        <div className="flipbook-scroll mx-auto flex w-full max-w-3xl flex-col gap-0 px-0 pb-24 md:pb-32">
           <div
-            className={`text-center py-2.5 text-[10px] font-bold uppercase tracking-widest sticky top-[4.5rem] sm:top-20 z-20 ${headerBg} backdrop-blur-sm border-b border-gray-100/10`}
+            className={`sticky top-[4.5rem] z-20 border-b border-gray-100/10 py-2.5 text-center text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm sm:top-20 ${headerBg}`}
           >
             {t.pdf.continuousView} • {t.pdf.page} {currentPage}
             {totalPages > 0 ? ` / ${totalPages}` : ""}
-            {backgroundRendering && (
-              <span className="block mt-1 text-[9px] font-normal normal-case text-amber-600">
-                {t.pdf.preparingPages} {currentRender}/{totalPages}
-              </span>
-            )}
           </div>
 
           <div
-            className="flipbook-scroll-pages w-full mx-auto origin-top transition-transform duration-200 ease-out"
+            className="flipbook-scroll-pages mx-auto w-full origin-top transition-transform duration-200 ease-out"
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: "top center",
@@ -602,7 +774,7 @@ export default function FlipbookViewer({ fileUrl }: Props) {
               <div
                 key={idx}
                 id={`page-${idx}`}
-                className={`w-full relative shadow-sm mx-auto ${themeStyles[theme]} ${
+                className={`relative mx-auto w-full shadow-sm ${themeStyles[theme]} ${
                   idx > 0 ? "mt-2" : "mt-0"
                 }`}
               >
@@ -610,14 +782,14 @@ export default function FlipbookViewer({ fileUrl }: Props) {
                   <img
                     src={src}
                     alt={`Página ${idx + 1}`}
-                    className="w-full h-auto block mx-auto"
-                    loading={idx < 3 ? "eager" : "lazy"}
+                    className="mx-auto block h-auto w-full"
+                    loading={idx < 4 ? "eager" : "lazy"}
                     decoding="async"
                     draggable={false}
                     style={{ filter: pageFilterStyle }}
                   />
                 )}
-                <div className="py-1.5 text-center text-[9px] text-gray-400 opacity-60 pointer-events-none">
+                <div className="pointer-events-none py-1.5 text-center text-[9px] text-gray-400 opacity-60">
                   {idx + 1}
                 </div>
               </div>

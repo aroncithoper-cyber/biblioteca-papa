@@ -135,6 +135,12 @@ const en: Dictionary = {
     loadErrorDetail: "Could not load the document.",
     resumePage: "📖 Resuming at pg.",
     preparingPages: "Preparing pages…",
+    preparingReading: "Preparing reading…",
+    preparingReadingHint:
+      "We are loading the first pages for a smoother reading experience.",
+    pagesReady: "Pages ready",
+    preparingRemaining: "Preparing remaining pages…",
+    preparingPage: "Preparing page…",
     protectedContent:
       "Content protected by copyright - Consejero del Obrero",
   },
