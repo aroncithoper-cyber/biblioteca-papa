@@ -11,6 +11,7 @@ import { auth } from "@/lib/firebase";
 import { isAdminEmail } from "@/lib/adminEmails";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/language";
+import { notifyTelegramRegistration } from "@/lib/telegramNotifyClient";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,6 +53,7 @@ export default function LoginPage() {
         
         // Guardamos el nombre en el perfil de Firebase
         await updateProfile(userCredential.user, { displayName: name });
+        notifyTelegramRegistration();
       } else {
         // LOGIN NORMAL
         userCredential = await signInWithEmailAndPassword(auth, email, password);

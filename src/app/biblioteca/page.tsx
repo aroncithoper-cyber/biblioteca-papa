@@ -24,6 +24,7 @@ import Link from "next/link";
 import InstallGuideModal from "@/components/InstallGuideModal";
 import { hasPendingRequestForBook, isPendingRequestStatus } from "@/lib/bookRequests";
 import { useLanguage } from "@/lib/language";
+import { notifyTelegramBookRequest } from "@/lib/telegramNotifyClient";
 
 type DocItem = {
   id: string;
@@ -432,7 +433,7 @@ function BookCard({
         return;
       }
 
-      await addDoc(collection(db, "requests"), {
+      const requestRef = await addDoc(collection(db, "requests"), {
         bookTitle: doc.title,
         bookId: doc.id,
         userEmail: userEmail,
@@ -441,6 +442,7 @@ function BookCard({
         status: "pendiente",
         createdAt: serverTimestamp(),
       });
+      notifyTelegramBookRequest(doc.id, requestRef.id);
       setLocalRequested(true);
       onRequestSubmitted?.(doc.id);
       setShowModal(false);

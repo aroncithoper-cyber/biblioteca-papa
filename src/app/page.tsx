@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import Header from "@/components/Header";
 import InstallGuideModal from "@/components/InstallGuideModal";
 import { getMessaging, getToken } from "firebase/messaging";
@@ -10,6 +9,8 @@ import { db } from "@/lib/firebase";
 import { usePlayer } from "@/lib/PlayerContext";
 import SharePlatformButton from "@/components/SharePlatformButton";
 import { useLanguage } from "@/lib/language";
+import HeroSection from "@/components/HeroSection";
+import HomeAuthorSection from "@/components/HomeAuthorSection";
 
 export default function LandingPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -106,92 +107,9 @@ export default function LandingPage() {
         </button>
       </div>
 
-      <section className="relative pt-10 pb-32 px-6 overflow-hidden text-center">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-amber-100/40 rounded-full blur-3xl -z-10 opacity-60" />
+      <HeroSection />
 
-        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in zoom-in duration-1000">
-          
-          {/* CAMBIO 1: LEGADO ESPIRITUAL */}
-          <div className="inline-block border border-amber-200/50 rounded-full px-4 py-1.5 bg-white/50 backdrop-blur shadow-sm mb-4">
-            <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-amber-700">
-              {t.home.spiritualLegacy}
-            </span>
-          </div>
-
-          <h1 className="text-5xl sm:text-7xl md:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9]">
-            {t.home.heroTitle1} <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-600 to-amber-800">
-              {t.home.heroTitle2}
-            </span>
-          </h1>
-
-          <p className="text-lg md:text-xl text-gray-500 italic font-medium max-w-2xl mx-auto leading-relaxed pt-4">
-            {t.home.heroQuote}
-          </p>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-10">
-            <Link
-              href="/biblioteca"
-              className="btn-premium w-full sm:w-auto px-10 py-4 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-[0.25em] shadow-xl hover:bg-amber-600 hover:shadow-2xl active:scale-[0.98]"
-            >
-              {t.home.exploreWork}
-            </Link>
-            <Link
-              href="/galeria"
-              className="btn-premium w-full sm:w-auto px-10 py-4 bg-white text-gray-900 border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-[0.25em] hover:bg-gray-50 hover:border-gray-400 active:scale-[0.98]"
-            >
-              {t.home.viewGallery}
-            </Link>
-            <SharePlatformButton variant="inline" className="w-full sm:w-auto" />
-          </div>
-        </div>
-      </section>
-
-      <section className="py-24 bg-white border-t border-amber-50">
-        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 md:gap-20 items-center">
-          
-          <div className="relative group mx-auto w-full max-w-md">
-            <div className="absolute inset-0 bg-amber-100 rounded-[2.5rem] rotate-3 group-hover:rotate-6 transition-transform duration-700" />
-            <div className="relative aspect-[3/4] bg-gray-100 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
-              <img 
-                src="/autor.png" 
-                className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000"
-                alt="J. Enrique Pérez L."
-                onError={(e) => {
-                  e.currentTarget.src = "/icon-512.png"; 
-                  e.currentTarget.classList.add("opacity-20", "p-20");
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-8 text-center md:text-left">
-            <h2 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tight leading-tight">
-              {t.home.serviceHeart} <span className="text-amber-600 underline decoration-amber-200 decoration-4 underline-offset-4">{t.home.service}</span>
-            </h2>
-            <div className="w-20 h-1 bg-amber-500 rounded-full mx-auto md:mx-0" />
-            
-            <p className="text-gray-600 leading-loose text-base md:text-lg">
-              La obra de <strong>J. Enrique Pérez León</strong> no pretende ser un tratado académico, sino una ofrenda de gratitud. Es el fruto de años de caminar en la fe, de estudio silencioso y de oración constante por la iglesia.
-            </p>
-            
-            <p className="text-gray-600 leading-loose text-base md:text-lg">
-              Esta plataforma nace con el deseo sencillo de compartir lo que de gracia se ha recibido, esperando que estas líneas sirvan de aliento para los hermanos que trabajan en la viña del Señor.
-            </p>
-            
-            <div className="grid grid-cols-2 gap-8 pt-6 border-t border-gray-100 mt-8">
-              <div>
-                <h3 className="text-4xl font-black text-amber-600">40+</h3>
-                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">{t.home.yearsServing}</p>
-              </div>
-              <div>
-                <h3 className="text-4xl font-black text-amber-600">∞</h3>
-                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2">{t.home.eternalGratitude}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HomeAuthorSection />
 
       <footer className="bg-[#121212] text-white py-20 px-6 text-center border-t border-gray-800">
         <img src="/icon-512.png" className="w-10 h-10 mx-auto mb-8 opacity-30 grayscale invert" alt="Logo" />

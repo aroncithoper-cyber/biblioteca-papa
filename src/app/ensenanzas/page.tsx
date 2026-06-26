@@ -14,6 +14,7 @@ import {
   hasTelegramShareUrl,
 } from "@/lib/ensenanzas";
 import { useLanguage } from "@/lib/language";
+import RevealOnScroll from "@/components/RevealOnScroll";
 
 const CATEGORY_ICONS: Record<string, string> = {
   Doctrina: "📖",
@@ -29,7 +30,7 @@ function getCategoryIcon(category?: string) {
 }
 
 export default function EnsenanzasPage() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [items, setItems] = useState<Ensenanza[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -95,21 +96,23 @@ export default function EnsenanzasPage() {
       <Header />
 
       {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 sm:pt-24 pb-8 text-center">
-        <div className="inline-block px-4 py-1.5 border border-amber-200 rounded-full bg-white shadow-sm mb-6">
-          <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-700">
-            {t.teachings.localMinistry}
-          </span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-gray-900 mb-4 tracking-tighter leading-tight">
-          {t.teachings.pageTitle}
-        </h1>
-        <p className="text-sm sm:text-lg md:text-xl text-amber-900/50 font-medium italic max-w-2xl mx-auto mb-4 sm:mb-6">
-          {t.teachings.pageSubtitle}
-        </p>
-        <p className="hidden sm:block text-[10px] sm:text-xs text-gray-400 max-w-xl mx-auto leading-relaxed px-2">
-          {t.teachings.institutionalText}
-        </p>
+      <section className="mx-auto max-w-6xl px-6 pb-8 pt-16 text-center sm:pt-24">
+        <RevealOnScroll className="space-y-4 sm:space-y-6" stagger={0.1} dependencies={[locale]}>
+          <div className="mb-2 inline-block rounded-full border border-amber-200 bg-white px-4 py-1.5 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-700">
+              {t.teachings.localMinistry}
+            </span>
+          </div>
+          <h1 className="text-3xl font-bold leading-tight tracking-tighter text-gray-900 sm:text-4xl md:text-6xl">
+            {t.teachings.pageTitle}
+          </h1>
+          <p className="mx-auto max-w-2xl text-sm font-medium italic text-amber-900/50 sm:text-lg md:text-xl">
+            {t.teachings.pageSubtitle}
+          </p>
+          <p className="mx-auto hidden max-w-xl px-2 text-[10px] leading-relaxed text-gray-400 sm:block sm:text-xs">
+            {t.teachings.institutionalText}
+          </p>
+        </RevealOnScroll>
       </section>
 
       {/* Beneficios de Telegram */}

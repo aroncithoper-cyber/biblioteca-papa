@@ -5,12 +5,13 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Header from "@/components/Header";
 import { useLanguage } from "@/lib/language";
+import RevealOnScroll from "@/components/RevealOnScroll";
 
 export default function GaleriaPage() {
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
 
   useEffect(() => {
     (async () => {
@@ -68,21 +69,29 @@ export default function GaleriaPage() {
 
       <section className="relative z-10 max-w-7xl mx-auto px-6 py-16 sm:py-24">
         {/* Encabezado */}
-        <div className="text-center mb-16 sm:mb-24 space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-          <div className="inline-block border border-amber-200 rounded-full px-6 py-2 bg-white/50 backdrop-blur-sm">
-             <span className="text-amber-800 font-black text-[10px] uppercase tracking-[0.4em]">
-                {t.gallery.familyAlbum}
-             </span>
+        <RevealOnScroll
+          className="mb-16 space-y-6 text-center sm:mb-24"
+          stagger={0.1}
+          dependencies={[locale]}
+        >
+          <div className="inline-block rounded-full border border-amber-200 bg-white/50 px-6 py-2 backdrop-blur-sm">
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-800">
+              {t.gallery.familyAlbum}
+            </span>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-8xl font-black text-gray-900 tracking-tighter leading-none">
-            {t.gallery.title1} <br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-600 to-amber-900">{t.gallery.title2}</span>
+          <h1 className="text-5xl font-black leading-none tracking-tighter text-gray-900 sm:text-6xl md:text-8xl">
+            {t.gallery.title1}{" "}
+            <br />
+            <span className="bg-gradient-to-b from-amber-600 to-amber-900 bg-clip-text text-transparent">
+              {t.gallery.title2}
+            </span>
           </h1>
 
-          <p className="text-gray-500 italic text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
+          <p className="mx-auto max-w-lg text-base italic leading-relaxed text-gray-500 sm:text-lg">
             {t.gallery.subtitle}
           </p>
-        </div>
+        </RevealOnScroll>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4">
